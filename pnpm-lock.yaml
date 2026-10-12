@@ -126,6 +126,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: 3.31.4
         version: 3.31.4
+      marked:
+        specifier: ^17.0.1
+        version: 17.0.6
       yaml:
         specifier: ^2.9.0
         version: 2.9.1

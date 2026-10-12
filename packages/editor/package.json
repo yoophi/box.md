@@ -12,12 +12,13 @@
   },
   "dependencies": {
     "@tiptap/core": "3.31.4",
+    "@tiptap/extension-image": "3.31.4",
+    "@tiptap/extension-table": "3.31.4",
+    "@tiptap/extension-task-item": "3.31.4",
+    "@tiptap/extension-task-list": "3.31.4",
     "@tiptap/markdown": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
-    "@tiptap/extension-image": "3.31.4",
-    "@tiptap/extension-task-list": "3.31.4",
-    "@tiptap/extension-task-item": "3.31.4",
-    "@tiptap/extension-table": "3.31.4",
+    "marked": "^17.0.1",
     "yaml": "^2.9.0"
   },
   "devDependencies": {

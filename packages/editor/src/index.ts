@@ -5,10 +5,16 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TableKit } from "@tiptap/extension-table";
 import { parseMarkdownFrontMatter } from "./frontMatter";
+import { marked } from "marked";
+import { MermaidBlock, restoreMermaidLineEndings } from "./mermaid";
 
 export function editorExtensions() {
   return [
-    StarterKit.configure({ link: { openOnClick: false, protocols: ["boxmd"] }, underline: false }),
+    MermaidBlock,
+    StarterKit.configure({
+      link: { openOnClick: false, protocols: ["boxmd"] },
+      underline: false,
+    }),
     Image,
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -18,7 +24,8 @@ export function editorExtensions() {
 }
 
 const manager = new MarkdownManager({ extensions: editorExtensions() });
-export const markdownToDocument = (markdown: string) => manager.parse(markdown);
+export const markdownToDocument = (markdown: string) =>
+  restoreMermaidLineEndings(manager.parse(markdown), markdown);
 export const documentToMarkdown = (
   document: Parameters<MarkdownManager["serialize"]>[0],
 ) => manager.serialize(document);
@@ -40,14 +47,28 @@ export function richTextIssue(markdown: string): string | null {
   const parsed = parseMarkdownFrontMatter(markdown.replace(/^\uFEFF/, ""));
   if (parsed.type === "invalid") return "YAML 속성을 원문에서 확인해주세요.";
   const { body } = splitDocument(markdown);
+  type Token = { type: string; raw: string; tokens?: Token[]; items?: Token[] };
+  const outsideCode = (tokens: Token[]): string =>
+    tokens
+      .map((token) =>
+        token.type === "code" || token.type === "codespan"
+          ? ""
+          : token.tokens
+            ? outsideCode(token.tokens)
+            : token.items
+              ? outsideCode(token.items)
+              : token.raw,
+      )
+      .join("\n");
+  const prose = outsideCode(marked.lexer(body) as Token[]);
   // These dialects are outside this editor schema; keep the full original in source mode.
   if (
     /\[\[|\(\([a-zA-Z0-9-]+\)\)|^\s*\[\^|^\s*\[[^\]]+\]:|<\/?[a-zA-Z][^>]*>|^\$\$|\$[^\n$]+\$/m.test(
-      body,
+      prose,
     )
   )
     return "이 문서의 확장 문법은 Markdown 원문에서 편집합니다.";
-  if (/^\s*\|?.*:[-]{3,}|^\s*\|?.*[-]{3,}:/m.test(body))
+  if (/^\s*\|?.*:[-]{3,}|^\s*\|?.*[-]{3,}:/m.test(prose))
     return "정렬된 표는 Markdown 원문에서 편집합니다.";
   return null;
 }
@@ -55,3 +76,4 @@ export function richTextIssue(markdown: string): string | null {
 export { parseMarkdownFrontMatter } from "./frontMatter";
 
 export { documentProperty, setDocumentProperty } from "./metadata";
+export { MermaidBlock } from "./mermaid";
