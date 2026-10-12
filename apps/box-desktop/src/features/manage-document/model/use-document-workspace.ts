@@ -30,6 +30,10 @@ type Action =
   | "edit"
   | { type: "open-path" | "workspace" | "permalink"; path: string };
 const WORKSPACE_KEY = "box.md.workspace-path";
+function storedWorkspacePath(): string | null {
+  try { return isDesktop() ? localStorage.getItem(WORKSPACE_KEY) : null; }
+  catch { return null; }
+}
 interface DocumentState {
   path: string | null;
   content: string;
@@ -54,6 +58,7 @@ export function useDocumentWorkspace() {
   readingRef.current = reading;
   const [incomingLink, setIncomingLink] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
+  const [configuredWorkspacePath, setConfiguredWorkspacePath] = useState(storedWorkspacePath);
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
   const [refreshing, setRefreshing] = useState(false);
@@ -241,13 +246,15 @@ export function useDocumentWorkspace() {
               });
         if (!folder || Array.isArray(folder)) return;
         const snapshot = await listWorkspace(folder);
+        try {
+          if (localStorage.getItem(WORKSPACE_KEY) !== snapshot.path)
+            localStorage.setItem(WORKSPACE_KEY, snapshot.path);
+        } catch {
+          throw new Error("작업 디렉터리 설정을 저장하지 못했습니다. 기존 문서와 설정을 유지합니다.");
+        }
         workspaceRef.current = snapshot;
         setWorkspace(snapshot);
-        try {
-          localStorage.setItem(WORKSPACE_KEY, snapshot.path);
-        } catch {
-          /* Preference persistence is optional. */
-        }
+        setConfiguredWorkspacePath(snapshot.path);
         setDocument(emptyDocument());
         setReading(false);
         setNotice("작업 디렉터리를 열었습니다. 목록에서 문서를 선택해주세요.");
@@ -456,6 +463,7 @@ export function useDocumentWorkspace() {
     insertDocumentLink,
     restoreVersion: (content: string) => { if (!readingRef.current && !busyRef.current) setDocument((current) => ({ ...current, content, key: ++nextDocumentKey })); },
     workspace,
+    configuredWorkspacePath,
     refreshing,
     refreshWorkspace,
     dirty,

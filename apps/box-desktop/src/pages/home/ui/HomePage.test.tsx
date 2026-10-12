@@ -9,10 +9,14 @@ import { act } from "@testing-library/react";
 
 vi.mock("@/entities/agent-chat", () => ({ createChatClient: vi.fn() }));
 
-const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]> }));
+const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]> }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, args: Record<string, unknown>) => {
-  if (command === "list_workspace_documents") return { path: "/workspace", documents: [{ path: native.path, name: native.path.split("/").pop(), relativePath: native.path.split("/").pop() }, ...(native.targetContent === null ? [] : [{ path: "/workspace/target.md", name: "target.md", relativePath: "target.md" }])], truncated: false };
+  if (command === "list_workspace_documents") {
+    if (native.brokenRoots.includes(String(args.path))) throw new Error("작업 디렉터리에 접근할 수 없습니다.");
+    if (args.path !== "/workspace") return { path: args.path, documents: [{ path: `${args.path}/other.md`, name: "other.md", relativePath: "other.md" }], truncated: false };
+    return { path: "/workspace", documents: [{ path: native.path, name: native.path.split("/").pop(), relativePath: native.path.split("/").pop() }, ...(native.targetContent === null ? [] : [{ path: "/workspace/target.md", name: "target.md", relativePath: "target.md" }])], truncated: false };
+  }
   if (command === "open_document") return { path: args.path, content: args.path === "/workspace/target.md" ? native.targetContent : native.content, revision: String(native.revision) };
   if (command === "save_document") {
     if (args.path === "/workspace/target.md") { native.targetContent = String(args.content); return { path: args.path, content: native.targetContent, revision: "2" }; }
@@ -32,7 +36,7 @@ vi.mock("@tauri-apps/plugin-deep-link", () => ({ getCurrent: async () => native.
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: async () => {} }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ onCloseRequested: async () => () => {}, close: async () => {} }) }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: async () => null, save: async () => null }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: async (options: { directory?: boolean }) => options.directory ? native.folder : null, save: async () => null }));
 
 beforeEach(() => {
   vi.mocked(createChatClient).mockImplementation(() => chatFixture().client);
@@ -41,9 +45,100 @@ beforeEach(() => {
   localStorage.clear(); localStorage.setItem("box.md.workspace-path", "/workspace");
   native.content = "---\nsummary: 원래 요약\ncustom: {enabled: true}\n---\n# 문서\n\n안녕 🌱\n";
   native.revision = 1; native.versions = []; native.path = "/workspace/note.md"; native.urls = null; native.targetContent = null; native.comments = {};
+  native.folder = null; native.brokenRoots = [];
 });
 afterEach(cleanup);
 describe("document workspace flows", () => {
+  it.each(["cancel", "discard", "save"] as const)("protects unsaved edits when applying a settings directory: %s", async (choice) => {
+    const original = native.content, draft = original + "\n작업 디렉터리 변경 전 초안";
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const source = screen.getByRole("textbox", { name: "Markdown 원문" });
+    fireEvent.change(source, { target: { value: draft } });
+    await user.click(screen.getByRole("button", { name: "설정" }));
+    native.folder = "/new-workspace";
+    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
+    await user.click(screen.getByRole("button", { name: "설정 저장" }));
+    expect(screen.getByRole("dialog", { name: "변경사항을 저장할까요?" })).toBeTruthy();
+    expect(localStorage.getItem("box.md.workspace-path")).toBe("/workspace");
+    const label = { cancel: "취소", discard: "변경 버리고 계속", save: "저장 후 계속" }[choice];
+    await user.click(screen.getByRole("button", { name: label }));
+    if (choice === "cancel") {
+      expect(localStorage.getItem("box.md.workspace-path")).toBe("/workspace");
+      expect((source as HTMLTextAreaElement).value).toBe(draft);
+    } else {
+      await screen.findByRole("button", { name: /other.md/ });
+      expect(localStorage.getItem("box.md.workspace-path")).toBe("/new-workspace");
+    }
+    if (choice === "save") expect(native.content.endsWith("작업 디렉터리 변경 전 초안")).toBe(true);
+    else expect(native.content).toBe(original);
+  });
+  it("stages a settings folder selection, saves explicitly and restores after remount", async () => {
+    const user = userEvent.setup(); const view = render(<HomePage />);
+    await screen.findByRole("button", { name: /note.md/ });
+    await user.click(screen.getByRole("button", { name: "설정" }));
+    const settings = screen.getByRole("dialog", { name: "설정" });
+    expect(within(settings).getByText("/workspace")).toBeTruthy();
+    native.folder = "/new-workspace";
+    await user.click(within(settings).getByRole("button", { name: "폴더 선택" }));
+    expect(localStorage.getItem("box.md.workspace-path")).toBe("/workspace");
+    expect((within(settings).getByRole("textbox", { name: "선택한 작업 디렉터리" }) as HTMLInputElement).value).toBe("/new-workspace");
+    await user.click(within(settings).getByRole("button", { name: "설정 저장" }));
+    await screen.findByRole("button", { name: /other.md/ });
+    expect(localStorage.getItem("box.md.workspace-path")).toBe("/new-workspace");
+    view.unmount(); render(<HomePage />);
+    await screen.findByRole("button", { name: /other.md/ });
+    await user.click(screen.getByRole("button", { name: "설정" }));
+    expect(within(screen.getByRole("dialog", { name: "설정" })).getByText("/new-workspace")).toBeTruthy();
+  });
+  it("preserves a staged selection on picker cancel and the saved setting on settings cancel", async () => {
+    const user = userEvent.setup(); render(<HomePage />);
+    await screen.findByRole("button", { name: /note.md/ });
+    await user.click(screen.getByRole("button", { name: "설정" }));
+    native.folder = "/new-workspace";
+    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
+    native.folder = null;
+    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
+    expect((screen.getByRole("textbox", { name: "선택한 작업 디렉터리" }) as HTMLInputElement).value).toBe("/new-workspace");
+    await user.click(screen.getByRole("button", { name: "취소" }));
+    expect(localStorage.getItem("box.md.workspace-path")).toBe("/workspace");
+    await user.click(screen.getByRole("button", { name: "설정" }));
+    expect((screen.getByRole("textbox", { name: "선택한 작업 디렉터리" }) as HTMLInputElement).value).toBe("/workspace");
+  });
+  it("shows an inaccessible saved path and allows recovery from settings", async () => {
+    localStorage.setItem("box.md.workspace-path", "/gone"); native.brokenRoots = ["/gone"];
+    const user = userEvent.setup(); render(<HomePage />);
+    await screen.findByText("작업 디렉터리에 접근할 수 없습니다.");
+    await user.click(screen.getByRole("button", { name: "설정" }));
+    expect(within(screen.getByRole("dialog", { name: "설정" })).getByText("/gone")).toBeTruthy();
+    expect(screen.getByText(/저장된 디렉터리를 열지 못했습니다/)).toBeTruthy();
+    native.folder = "/new-workspace";
+    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
+    await user.click(screen.getByRole("button", { name: "설정 저장" }));
+    await screen.findByRole("button", { name: /other.md/ });
+    expect(localStorage.getItem("box.md.workspace-path")).toBe("/new-workspace");
+  });
+  it("keeps the original workspace and unsaved document if preference storage fails", async () => {
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const source = screen.getByRole("textbox", { name: "Markdown 원문" });
+    const draft = native.content + "\n저장되지 않은 문서";
+    fireEvent.change(source, { target: { value: draft } });
+    await user.click(screen.getByRole("button", { name: "설정" }));
+    native.folder = "/new-workspace";
+    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
+    await user.click(screen.getByRole("button", { name: "설정 저장" }));
+    const failStorage = vi.spyOn(localStorage, "setItem").mockImplementation(() => { throw new Error("quota"); });
+    await user.click(screen.getByRole("button", { name: "변경 버리고 계속" }));
+    await screen.findByText(/작업 디렉터리 설정을 저장하지 못했습니다/);
+    failStorage.mockRestore();
+    expect(localStorage.getItem("box.md.workspace-path")).toBe("/workspace");
+    expect((source as HTMLTextAreaElement).value).toBe(draft);
+    expect(screen.getByText("저장하지 않은 변경사항")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /note.md/ })).toBeTruthy();
+  });
   it("retains the unsaved document, conversation and message draft while toggling chat", async () => {
     const fixture = chatFixture(); vi.mocked(createChatClient).mockReturnValue(fixture.client);
     const original = native.content, user = userEvent.setup(); render(<HomePage />);

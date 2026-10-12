@@ -1,4 +1,5 @@
 import { AgentChatSheet, useAgentChat } from "@/features/agent-chat";
+import { WorkspaceSettings } from "@/features/workspace-settings";
 import { DocumentCards } from "@/features/document-cards";
 import { DocumentComments } from "@/features/document-comments";
 import { LinkDocument } from "@/features/link-document";
@@ -18,6 +19,7 @@ export function HomePage() {
   const [linkToOpen, setLinkToOpen] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const chat = useAgentChat(workspace.workspace?.path, showChat);
   const [showCards, setShowCards] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -39,7 +41,7 @@ export function HomePage() {
     <main className="document-workspace">
       <aside
         className="workspace-sidebar"
-        inert={Boolean(pending || overwrite)}
+        inert={Boolean(pending || overwrite || showSettings)}
       >
         <a className="wordmark" href="#">
           box.md<span>▧</span>
@@ -70,6 +72,7 @@ export function HomePage() {
         </button>
         <button className="sidebar-action" disabled={!folder || busy} onClick={() => setShowCards(true)}>문서 카드 보기</button>
         <button className="sidebar-action" disabled={!folder || !isDesktop()} aria-expanded={showChat} onClick={() => setShowChat(!showChat)}>에이전트 채팅</button>
+        <button className="sidebar-action" disabled={busy || !isDesktop()} onClick={() => setShowSettings(true)}>설정</button>
         <form className="open-document-link" onSubmit={(event) => {
           event.preventDefault();
           try { workspace.request({ type: "permalink", path: permalinkFromLink(linkToOpen) }); setLinkError(null); }
@@ -139,7 +142,7 @@ export function HomePage() {
           <span>내 파일에 남는 생각.</span>
         </p>
       </aside>
-      <section className="workspace-main" inert={Boolean(pending || overwrite)} onClickCapture={(event) => {
+      <section className="workspace-main" inert={Boolean(pending || overwrite || showSettings)} onClickCapture={(event) => {
         const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
         const href = anchor?.getAttribute("href");
         if (!href?.startsWith("boxmd:")) return;
@@ -221,7 +224,11 @@ export function HomePage() {
         </footer>
         </>}
       </section>
-      <AgentChatSheet model={chat} open={showChat} workspace={folder?.path} blocked={Boolean(pending || overwrite)} onHide={() => setShowChat(false)} />
+      <AgentChatSheet model={chat} open={showChat} workspace={folder?.path} blocked={Boolean(pending || overwrite || showSettings)} onHide={() => setShowChat(false)} />
+      {showSettings && <WorkspaceSettings savedPath={workspace.configuredWorkspacePath} activePath={folder?.path} onClose={() => setShowSettings(false)} onSave={(path) => {
+        setShowSettings(false);
+        workspace.request({ type: "workspace", path });
+      }} />}
       {pending && !overwrite && (
         <div className="modal-overlay">
           <section
