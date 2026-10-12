@@ -32,3 +32,5 @@ Chromium 27개 중 7개가 위키 링크 검증이다. HTML 형태의 제목·�
 실행한 기본 검사는 `pnpm check-types`, `pnpm test`, `pnpm --filter @box/desktop test:browser`, `pnpm build`, `cargo fmt --all -- --check`, `cargo check --workspace --all-targets`다. 로그는 `/tmp/box-md-gh34-{types,tests,browser,build,fmt,rust}.log`에 있다. 영구 검증 근거는 커밋된 테스트와 이 문서다.
 
 하위 작업은 gh-32(공용 파서), gh-33(제목·상태·이동), gh-34(통합 감사)로 구분한다. 설계와 단계별 구현 내역은 [wikilink 구현 계획](wikilink-implementation-plan.md)에 있다.
+
+상위 gh-18 검토에서는 GitHub 이슈의 최신 수용 기준 1~8을 다시 읽고 위 근거와 대조했다. 공용 편집기와 앱 조회가 분리되고, 본문 연결과 명시적 연결 엔티티를 같은 개념으로 취급하지 않음을 확인했다. 공통 용어는 [문서 연결 용어](../CONTEXT.md)에 기록했다.
