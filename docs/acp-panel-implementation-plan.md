@@ -79,18 +79,18 @@ Box 기본 검사도 통과했다(`/tmp/box-md-gh44-{types,build,fmt,rust}.log`)
 
 ## AW 공유 확장 완료 근거 (gh-45, 2026-10-13)
 
-AW 별도 브랜치 [`box-md-ui-panels`](https://github.com/yoophi/agentic-workspace/tree/box-md-ui-panels), commit [`a11a117f09242e626ece4a6908ae8408bf5e9044`](https://github.com/yoophi/agentic-workspace/commit/a11a117f09242e626ece4a6908ae8408bf5e9044)를 push했다. 기존 HTTP 브랜치와 사용자 primary checkout은 보존했다.
+AW 별도 브랜치 [`box-md-ui-panels`](https://github.com/yoophi/agentic-workspace/tree/box-md-ui-panels), commit [`8534a7b78a9706869b513019abe220c56ecb8281`](https://github.com/yoophi/agentic-workspace/commit/8534a7b78a9706869b513019abe220c56ecb8281)를 push했다. 기존 HTTP 브랜치와 사용자 primary checkout은 보존했다.
 
 공유 component에 `keepMounted`, `defaultCollapsedPanel`, `controllerRef`와 collapse/expand/toggle/getState를 추가했다. 제목 버튼과 외부 제어는 같은 경로를 사용하며 마지막 열린 패널과 비허용 패널을 보호한다. 초기 접기는 실제 측정된 layout을 저장한 뒤 적용하며 숫자/문자열 px 기본 폭을 50% fallback으로 확정하지 않는다. 숨긴 content는 동일 wrapper/DOM/component를 유지하며 hidden/inert/display 처리로 focus를 막는다. 기본 keepMounted false는 기존 unmount 동작을 유지한다.
 
 | 검증 | 결과와 증거 범위 |
 | --- | --- |
-| AW UI 상태·DOM tests | 17개 통과. 순수 상태 9개 + component 8개. DOM 테스트는 resize primitive mock이므로 실제 크기 근거는 아래 Chromium 결과다. |
-| 실제 Chromium + 실제 AW primitive | 9개 통과. 초기 percentage/string px/numeric px/max 경계 복원, DOM/React 초안/selection·문서 및 접힌 채팅 undo, focus 차단, keyboard/pointer resize, 좁은 container min/max, 외부 제약과 마지막 열린 패널, 기존 기본 unmount/showTitle false. |
+| AW UI 상태·DOM tests | 18개 통과. 순수 상태 9개 + component 9개. DOM 테스트는 resize primitive mock이므로 실제 크기 근거는 아래 Chromium 결과다. |
+| 실제 Chromium + 실제 AW primitive | 10개 통과. 초기 percentage/string px/numeric px/max 경계 복원, DOM/React 초안/selection·문서 및 접힌 채팅 undo, focus 차단, keyboard/pointer resize, 좁은 container min/max, drag-to-rail 상태 동기화/폭 복원, 외부 제약과 마지막 열린 패널, 기존 기본 unmount/showTitle false. |
 | UI check-types | 통과. |
 | GE build / Storybook build | 통과. 기존 소비자 타입·번들 및 네 가지 PersistentPanels Molecules 사례. |
 | 원격 상태 | 로컬 AW HEAD와 origin/box-md-ui-panels가 위 commit으로 일치하고 worktree가 clean. |
 
-실행 로그는 `/tmp/box-md-gh45-ui-tests.log`, `/tmp/box-md-gh45-browser-final2.log`, `/tmp/box-md-gh45-ui-types.log`, `/tmp/box-md-gh45-ge-build.log`, `/tmp/box-md-gh45-storybook.log`다. 재현 명령과 API 계약은 해당 AW commit의 `docs/collapsible-panels-controller.md`에 있다.
+실행 로그는 `/tmp/box-md-gh45-ui-tests.log`, `/tmp/box-md-gh45-browser-rail.log`, `/tmp/box-md-gh45-ui-types.log`, `/tmp/box-md-gh45-ge-build.log`, `/tmp/box-md-gh45-browser-rail.log (Storybook build 포함)`다. 재현 명령과 API 계약은 해당 AW commit의 `docs/collapsible-panels-controller.md`에 있다.
 
 Box vendor는 아직 기존 pin이다. 실제 shared import/facade·inline 채팅·native 중앙 geometry 연결은 gh-46 범위이며 이 기록은 Box 통합 또는 native ACP 검증을 완료했다는 뜻이 아니다. gh-17 및 gh-47의 native/ACP 최종 gate는 유지한다.
