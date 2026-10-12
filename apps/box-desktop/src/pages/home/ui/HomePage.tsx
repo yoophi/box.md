@@ -1,3 +1,4 @@
+import { DocumentCards } from "@/features/document-cards";
 import { DocumentComments } from "@/features/document-comments";
 import { LinkDocument } from "@/features/link-document";
 import { permalinkFromLink } from "@/entities/document";
@@ -15,8 +16,9 @@ export function HomePage() {
   const workspace = useDocumentWorkspace();
   const [linkToOpen, setLinkToOpen] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [showCards, setShowCards] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  useEffect(() => setShowHistory(false), [workspace.document.key]);
+  useEffect(() => { setShowHistory(false); setShowCards(false); }, [workspace.document.key]);
   const {
     document,
     dirty,
@@ -63,6 +65,7 @@ export function HomePage() {
         >
           문서 열기 <kbd>⌘O</kbd>
         </button>
+        <button className="sidebar-action" disabled={!folder || busy} onClick={() => setShowCards(true)}>문서 카드 보기</button>
         <form className="open-document-link" onSubmit={(event) => {
           event.preventDefault();
           try { workspace.request({ type: "permalink", path: permalinkFromLink(linkToOpen) }); setLinkError(null); }
@@ -140,6 +143,10 @@ export function HomePage() {
         try { workspace.request({ type: "permalink", path: permalinkFromLink(href) }); }
         catch { setLinkError("유효하지 않은 문서 링크입니다."); }
       }}>
+        {showCards && folder ? <>
+          {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={workspace.dismissError}>닫기</button></div>}
+          <DocumentCards workspace={folder} disabled={busy} onOpen={(path) => workspace.request({ type: "open-path", path })} onClose={() => setShowCards(false)} />
+        </> : <>
         <header className="document-header">
           <div className="document-title">
             <span className="file-label">{reading ? "읽기 모드 · READ ONLY" : "편집 모드 · DOCUMENT"}</span>
@@ -208,6 +215,7 @@ export function HomePage() {
             {isDesktop() ? "로컬 Markdown" : "브라우저 미리보기"}
           </span>
         </footer>
+        </>}
       </section>
       {pending && !overwrite && (
         <div className="modal-overlay">

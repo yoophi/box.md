@@ -1,6 +1,6 @@
 import { documentProperty } from "@box/editor";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
-import { cleanup, render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HomePage } from "./HomePage";
 
@@ -38,6 +38,15 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("document workspace flows", () => {
+  it("shows original frontmatter summaries on cards and opens their documents", async () => {
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: "문서 카드 보기" }));
+    const cards = screen.getByRole("region", { name: "문서 카드" });
+    expect(await within(cards).findByText("원래 요약")).toBeTruthy();
+    await user.click(within(cards).getByRole("button", { name: "note.md 문서 열기" }));
+    expect(await screen.findByRole("heading", { name: "note.md" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "문서 카드" })).toBeNull();
+  });
   it("saves a one-line summary in front matter and reloads it without changing the body", async () => {
     native.content = "---\npermalink: fixed\ncustom: {enabled: true}\n---\n# 원문\n\n본문 보존\n";
     const user = userEvent.setup(); const view = render(<HomePage />);
