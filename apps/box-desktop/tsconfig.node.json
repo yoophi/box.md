@@ -19,6 +19,7 @@
     "vitest.config.ts",
     "vitest.integration.config.ts",
     "playwright.config.ts",
+    "playwright.native-fixture.config.ts",
     "tests/browser/**/*.ts"
   ]
 }

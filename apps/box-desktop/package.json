@@ -15,7 +15,10 @@
     "prepare:server": "node ../../scripts/prepare-workbench-server.mjs",
     "prepare:server:dev": "node ../../scripts/prepare-workbench-server.mjs --debug",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "fixture:native-browser": "node tests/native/site-browser-fixture.mjs",
+    "test:native-browser-fixture": "node --test tests/native/site-browser-fixture.test.mjs",
+    "test:native-browser-pages": "playwright test --config playwright.native-fixture.config.ts"
   },
   "dependencies": {
     "@box/contracts": "workspace:*",
