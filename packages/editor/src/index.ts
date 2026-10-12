@@ -8,7 +8,7 @@ import { parseMarkdownFrontMatter } from "./frontMatter";
 
 export function editorExtensions() {
   return [
-    StarterKit.configure({ link: { openOnClick: false }, underline: false }),
+    StarterKit.configure({ link: { openOnClick: false, protocols: ["boxmd"] }, underline: false }),
     Image,
     TaskList,
     TaskItem.configure({ nested: true }),

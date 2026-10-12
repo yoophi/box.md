@@ -7,6 +7,10 @@ import {
 } from "./index";
 
 describe("Markdown document preservation", () => {
+  it("preserves boxmd document link targets through rich editing", () => {
+    const source = "[문서](boxmd://document?permalink=stable)";
+    expect(documentToMarkdown(markdownToDocument(source))).toContain("boxmd://document?permalink=stable");
+  });
   it("keeps nested YAML, comments, CRLF and body separate", () => {
     const prefix =
       "---\r\n# keep\r\ntitle: 생각\r\nmeta:\r\n  owner: me\r\n---\r\n\r\n";

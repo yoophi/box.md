@@ -1,3 +1,4 @@
+import { LinkDocument } from "@/features/link-document";
 import { permalinkFromLink } from "@/entities/document";
 import { DocumentProperties } from "@/features/document-properties";
 import { useEffect, useState } from "react";
@@ -128,7 +129,14 @@ export function HomePage() {
           <span>내 파일에 남는 생각.</span>
         </p>
       </aside>
-      <section className="workspace-main" inert={Boolean(pending || overwrite)}>
+      <section className="workspace-main" inert={Boolean(pending || overwrite)} onClickCapture={(event) => {
+        const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+        const href = anchor?.getAttribute("href");
+        if (!href?.startsWith("boxmd:")) return;
+        event.preventDefault(); event.stopPropagation();
+        try { workspace.request({ type: "permalink", path: permalinkFromLink(href) }); }
+        catch { setLinkError("유효하지 않은 문서 링크입니다."); }
+      }}>
         <header className="document-header">
           <div className="document-title">
             <span className="file-label">DOCUMENT</span>
@@ -177,6 +185,7 @@ export function HomePage() {
             <button onClick={workspace.dismissError}>닫기</button>
           </div>
         )}
+        {folder && <LinkDocument documents={folder.documents} currentPath={document.path} disabled={busy} onInsert={workspace.insertDocumentLink} />}
         <DocumentProperties content={document.content} disabled={busy} onChange={workspace.restoreVersion} />
         {showHistory && document.path ? <DocumentHistory key={document.path} path={document.path} dirty={dirty} busy={busy} onRestore={workspace.restoreVersion} onClose={() => setShowHistory(false)} /> : <MarkdownEditor
           key={document.key}

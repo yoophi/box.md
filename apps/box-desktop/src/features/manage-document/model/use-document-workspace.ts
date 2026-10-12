@@ -1,3 +1,4 @@
+import { documentProperty, setDocumentProperty } from "@box/editor";
 import { getCurrent, onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -11,6 +12,7 @@ import {
   documentName,
   errorMessage,
   withDocumentPermalink,
+  documentLink,
   resolvePermalink,
   permalinkFromLink,
 } from "@/entities/document";
@@ -116,6 +118,25 @@ export function useDocumentWorkspace() {
     if (saved.historyWarning) setError(`히스토리 저장 실패: ${saved.historyWarning}`);
     await refreshWorkspace();
     return true;
+  }
+
+  async function insertDocumentLink(targetPath: string) {
+    if (!isDesktop() || !begin()) return;
+    try {
+      if (!workspaceRef.current?.documents.some((file) => file.path === targetPath)) throw new Error("현재 작업 디렉토리의 문서를 선택해주세요.");
+      if (targetPath === docRef.current.path) throw new Error("다른 문서를 선택해주세요.");
+      const target = await readDocument(targetPath);
+      let permalink = documentProperty(target.content, "permalink");
+      if (!permalink) {
+        permalink = crypto.randomUUID();
+        const saved = await writeDocument(target.path, setDocumentProperty(target.content, "permalink", permalink), target.revision);
+        if (saved.historyWarning) setError(`대상 문서 히스토리 기록 실패: ${saved.historyWarning}`);
+      }
+      const label = documentName(target.path).replace(/\\/g, "\\\\").replace(/([\[\]])/g, "\\$1");
+      setDocument((current) => ({ ...current, key: ++nextDocumentKey, content: current.content + (current.content ? "\n\n" : "") + `[${label}](${documentLink(permalink)})\n` }));
+      setNotice("문서 링크를 추가했습니다. 저장하면 연결이 유지됩니다.");
+    } catch (cause) { setError(errorMessage(cause)); }
+    finally { end(); }
   }
 
   const saveDocument = useCallback(async (saveAs = false): Promise<boolean> => {
@@ -418,6 +439,7 @@ export function useDocumentWorkspace() {
 
   return {
     document,
+    insertDocumentLink,
     restoreVersion: (content: string) => setDocument((current) => ({ ...current, content, key: ++nextDocumentKey })),
     workspace,
     refreshing,

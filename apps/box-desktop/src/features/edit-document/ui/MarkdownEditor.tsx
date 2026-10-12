@@ -161,7 +161,7 @@ function RichEditor({ content, disabled, onChange }: Props) {
           className="link-form"
           onSubmit={(event) => {
             event.preventDefault();
-            if (/^https?:\/\//i.test(link)) {
+            if (/^(https?:\/\/|boxmd:\/\/document\?permalink=)/i.test(link)) {
               editor
                 .chain()
                 .focus()
@@ -177,11 +177,11 @@ function RichEditor({ content, disabled, onChange }: Props) {
             <input
               autoFocus
               aria-label="링크 주소"
-              type="url"
+              type="text"
               value={link}
               onChange={(event) => setLink(event.target.value)}
               required
-              pattern="https?://.*"
+              pattern={"(https?://.*|boxmd://document\\?permalink=.+)"}
             />
           </label>
           <button type="submit">적용</button>

@@ -596,3 +596,5 @@ kbd {
 .open-document-link input { display: block; margin-top: 6px; width: 100%; box-sizing: border-box; border: 1px solid #c0cbb3; background: #f5f3eb; padding: 7px; border-radius: 3px; font-size: 10px; }
 .open-document-link button { border: 0; padding: 7px; border-radius: 3px; background: #d5dfcb; color: #244f42; }
 .open-document-link p { margin: 0; color: #8d4e39; }
+
+.document-properties select { min-width: 180px; max-width: 300px; padding: 7px 10px; border: 1px solid #c0cbb3; border-radius: 3px; background: #faf9f2; color: #344a3d; font-size: 12px; }
