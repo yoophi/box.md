@@ -2,6 +2,8 @@
 
 조사일: 2026-10-13. 대상: gh-20 구현 준비. 이 문서는 공식 규격과 SDK 소스를 검토한 구현 기준 제안이며 Box 문서 도구나 네이티브 서버의 구현 완료를 뜻하지 않는다.
 
+gh-49 실제 HTTP 검증 후 공용 호스트를 추가했다. 조사 당시의 제안과 현재 구현을 구별하며 [호스트 연동 결과](document-mcp-host-integration.md)를 따른다. 특히 rmcp 3.5.1 legacy stateless 경로는 알려진 version header를 handler의 allowlist로 제한하지 않고, 도구 스키마 광고는 전체 runtime input validation을 제공하지 않는다. 공용 host에서 version header를 제한하고 앱 handler가 input을 검증한다. 단순 SDK schema 제공만으로 검증 완료를 주장하지 않는다.
+
 ## 결론과 버전 기준
 
 MCP wire protocol은 공식 Rust SDK `rmcp`에 맡기고, AW에는 앱 도구 handler를 주입받는 공용 HTTP 호스트를 마련하는 방향을 제안한다. Box에는 문서 application service를 호출하는 handler만 둔다. 현재 AW 서버의 구체적인 `WorkbenchRuntime` 결합은 아래 로컬 소스에서 확인했다. 이는 설계 제안이며 현재 구현 상태가 아니다.
@@ -29,9 +31,9 @@ MCP wire protocol은 공식 Rust SDK `rmcp`에 맡기고, AW에는 앱 도구 ha
 
 공식 예제는 `axum::Router::new().nest_service("/mcp", service)`로 연결하고 `TcpListener`와 `axum::serve`를 애플리케이션이 소유한다. 따라서 SDK가 Tauri를 요구하지 않으며 네이티브 shell과 서버 protocol을 분리할 수 있다. [공식 HTTP 서버 예제](https://github.com/modelcontextprotocol/rust-sdk/blob/79437f291b2c44053d00dcd5db969fd0cca7c887/examples/servers/src/counter_streamhttp.rs)
 
-수동 handler는 `get_info`, `supported_protocol_versions`, `list_tools`, `get_tool`, `call_tool`을 구현한다. 3.x의 `call_tool` 반환은 `Result<CallToolResponse, ErrorData>`이며 완료 도구 결과는 `CallToolResult`에서 변환한다. 초기 버전을 좁히려면 `supported_protocol_versions`를 `[ProtocolVersion::V_2025_11_25]`로 제한한다. 기본 구현은 SDK가 아는 모든 버전을 지원한다고 광고한다. `get_info`만 낮은 버전으로 설정하는 것으로 지원 버전 allowlist를 대체하지 않는다. [ServerHandler 계약](https://github.com/modelcontextprotocol/rust-sdk/blob/79437f291b2c44053d00dcd5db969fd0cca7c887/crates/rmcp/src/handler/server.rs#L315-L552)
+수동 handler는 `get_info`, `supported_protocol_versions`, `list_tools`, `get_tool`, `call_tool`을 구현한다. 3.x의 `call_tool` 반환은 `Result<CallToolResponse, ErrorData>`이며 완료 도구 결과는 `CallToolResult`에서 변환한다. 초기 버전의 광고·initialize 협상을 좁히려면 `supported_protocol_versions`를 `[ProtocolVersion::V_2025_11_25]`로 제한한다. 기본 구현은 SDK가 아는 모든 버전을 지원한다고 광고한다. `get_info`만 낮은 버전으로 설정하는 것으로 지원 버전 allowlist를 대체하지 않는다. 다만 gh-49에서 확인한 legacy stateless 후속 version header에는 host의 추가 제한이 필요하다. [ServerHandler 계약](https://github.com/modelcontextprotocol/rust-sdk/blob/79437f291b2c44053d00dcd5db969fd0cca7c887/crates/rmcp/src/handler/server.rs#L315-L552)
 
-매크로 경로는 `#[tool_router]`, `#[tool_handler]`, `Parameters<T>`와 `Json<T>`를 사용하며 Rust 타입에서 input/output schema를 생성하는 공식 예제가 있다. 수동 `get_tool` 기본 구현은 `None`이며 validation을 우회하므로 schema를 광고한 것만으로 입력 검증이 완료된다고 간주하면 안 된다. [공식 structured output 예제](https://github.com/modelcontextprotocol/rust-sdk/blob/79437f291b2c44053d00dcd5db969fd0cca7c887/examples/servers/src/structured_output.rs), [handler 소스](https://github.com/modelcontextprotocol/rust-sdk/blob/79437f291b2c44053d00dcd5db969fd0cca7c887/crates/rmcp/src/handler/server.rs#L538-L551)
+매크로 경로는 `#[tool_router]`, `#[tool_handler]`, `Parameters<T>`와 `Json<T>`를 사용하며 Rust 타입에서 input/output schema를 생성하는 공식 예제가 있다. 수동 `get_tool` 기본 구현은 `None`이며 schema 정보를 제공하지 않는다. `Some(Tool)`을 제공해도 gh-49 HTTP 검사에서 extra key가 자동 거부되지 않았으므로 handler가 runtime 입력 검증을 수행해야 한다. [공식 structured output 예제](https://github.com/modelcontextprotocol/rust-sdk/blob/79437f291b2c44053d00dcd5db969fd0cca7c887/examples/servers/src/structured_output.rs), [handler 소스](https://github.com/modelcontextprotocol/rust-sdk/blob/79437f291b2c44053d00dcd5db969fd0cca7c887/crates/rmcp/src/handler/server.rs#L538-L551)
 
 ## 2025-11-25 호환과 HTTP 동작
 

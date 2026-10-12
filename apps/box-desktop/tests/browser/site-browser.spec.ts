@@ -94,7 +94,7 @@ test("uses the central region beside inline chat without a second drawer inset, 
   await page.setViewportSize({ width: 600, height: 480 });
   await expect.poll(() => page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.site.visible)).toBe(true);
   await expect.poll(() => page.evaluate(() => {
-    const region = document.querySelector('.site-browser-content')!.getBoundingClientRect();
+    const region = globalThis.document.querySelector('.site-browser-content')!.getBoundingClientRect();
     return window.__BOX_BROWSER_FIXTURE__.siteBounds!.width - region.width;
   })).toBeCloseTo(0, 0);
   await page.getByRole("button", { name: "채팅 숨기기" }).click();

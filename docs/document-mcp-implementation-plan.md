@@ -1,6 +1,6 @@
 # 문서 MCP 구현 계획 (gh-20)
 
-2026-10-13 기준 구현 계약과 작업 순서다. 이 문서의 도구와 공용 서버는 아직 구현되지 않았다. 부모 gh-20의 수용 기준 1~9와 기존 gh-3 의존성을 유지한다. 공식 규격·버전 근거는 [프로토콜 조사](document-mcp-protocol-research.md)를 따른다.
+2026-10-13 기준 구현 계약과 작업 순서다. 문서 도구는 아직 구현되지 않았다. gh-49에서 [공용 HTTP 호스트 기반](document-mcp-host-integration.md)을 구현했으며 문서 handler·native grant·ACP 연동은 후속 작업으로 남아 있다. 부모 gh-20의 수용 기준 1~9와 기존 gh-3 의존성을 유지한다. 공식 규격·버전 근거는 [프로토콜 조사](document-mcp-protocol-research.md)를 따른다.
 
 ## 현재 코드와 재사용 경계
 
@@ -24,7 +24,7 @@ AW의 별도 작업 브랜치에서 `crates/local-mcp-server`를 Cargo workspace
 - generic 예제 handler와 실제 HTTP protocol 테스트를 제공한다. Workbench의 기존 orchestration 도구를 Box 전용 도구로 바꾸지 않는다. 기존 MCP 서버 전체 마이그레이션은 이 기능의 선행 조건이 아니다.
 - AW 작업 커밋과 브랜치를 push한 뒤 Box submodule을 그 커밋에 고정한다. HTTP ACP 공유 client와 UI 공유 변경이 포함된 기존 pin의 기능을 유지한다.
 
-AW에도 [공유 호스트 계획](https://github.com/yoophi/agentic-workspace/blob/2cd01eff03f266cd50ca0e5176b7eee9ad72a508/docs/shared-document-mcp-host-plan.md)을 기록하고 `box-md-document-mcp` 브랜치를 push했다. 계획 커밋은 `2cd01eff03f266cd50ca0e5176b7eee9ad72a508`이다. 현재 Box vendor pin은 구현 변경 없이 `8534a7b`를 유지하며 실제 라이브러리 구현 후 gh-49에서 갱신한다.
+AW에도 [공유 호스트 계획](https://github.com/yoophi/agentic-workspace/blob/2cd01eff03f266cd50ca0e5176b7eee9ad72a508/docs/shared-document-mcp-host-plan.md)을 기록하고 `box-md-document-mcp` 브랜치를 push했다. 계획 커밋은 `2cd01eff03f266cd50ca0e5176b7eee9ad72a508`이다. gh-49 구현 커밋과 Box vendor pin은 `9ee73897ec04476d145536881381b5da313ea8cc`이며 이전 공유 HTTP ACP/UI 변경을 포함한다. 현재 API와 검증 범위는 [AW 호스트 사용법](../vendor/agentic-workspace/docs/local-mcp-server.md)을 따른다.
 
 ## 문서 도구 계약
 
