@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import type { ConnectionSnapshot, WorkspaceDocument } from "@box/contracts";
+import type { ConnectionSnapshot, WorkspaceDocument, SiteBrowserSnapshot, SiteBrowserBounds } from "@box/contracts";
 interface NativeFixture {
   pickedFolder: string | null;
   invalidRoots: string[];
@@ -10,6 +10,12 @@ interface NativeFixture {
   truncated: boolean;
   connections: ConnectionSnapshot;
   failConnections: boolean;
+  site: SiteBrowserSnapshot;
+  siteCalls: { command: string; args: Record<string, unknown> }[];
+  siteBounds: SiteBrowserBounds | null;
+  failSite: boolean;
+  siteOpenDelay: number;
+  siteHideDelay: number;
 }
 declare global {
   interface Window {
@@ -46,6 +52,8 @@ export async function seedWorkspace(
         truncated: false,
         connections: storedConnections ? JSON.parse(storedConnections) : { version: 1, entities: [], memberships: [] },
         failConnections: false,
+        site: { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false },
+        siteCalls: [], siteBounds: null, failSite: false, siteOpenDelay: 0, siteHideDelay: 0,
       };
       window.__BOX_BROWSER_FIXTURE__ = state;
       const setItem = Storage.prototype.setItem;
@@ -62,6 +70,8 @@ export async function seedWorkspace(
       const content = state.content,
         revisions = new Map<string, number>();
       let callbackId = 0;
+      const siteHistory: string[] = [];
+      let siteIndex = -1;
       const callbacks = new Map<number, unknown>();
       const bridge = {
         metadata: {
@@ -77,6 +87,30 @@ export async function seedWorkspace(
         },
         async invoke(command: string, args: Record<string, unknown> = {}) {
           const path = String(args.path ?? "");
+          if (command.startsWith("site_browser_")) {
+            state.siteCalls.push({ command, args: structuredClone(args) });
+            if (state.failSite) throw new Error("사이트 상태를 확인하지 못했습니다.");
+            if (command === "site_browser_open") {
+              const input = String(args.url), url = new URL(input.includes("://") ? input : `https://${input}`);
+              if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("HTTP 또는 HTTPS 사이트 주소를 입력해주세요.");
+              if (state.siteOpenDelay) await new Promise((resolve) => setTimeout(resolve, state.siteOpenDelay));
+              siteHistory.splice(++siteIndex); siteHistory.push(url.href);
+              state.site = { ...state.site, open: true, visible: false, url: url.href, title: "검증 사이트", loading: false };
+            }
+            if (command === "site_browser_layout") {
+              if (!args.bounds && state.siteHideDelay) await new Promise((resolve) => setTimeout(resolve, state.siteHideDelay));
+              state.siteBounds = args.bounds as SiteBrowserBounds | null;
+              state.site.visible = state.site.open && Boolean(args.bounds);
+            }
+            if (command === "site_browser_action") {
+              if (args.action === "back") siteIndex = Math.max(0, siteIndex - 1);
+              if (args.action === "forward") siteIndex = Math.min(siteHistory.length - 1, siteIndex + 1);
+              state.site.url = siteHistory[siteIndex] ?? null;
+            }
+            state.site.canGoBack = siteIndex > 0;
+            state.site.canGoForward = siteIndex < siteHistory.length - 1;
+            return structuredClone(state.site);
+          }
           if (["list_connections", "create_connection_entity", "attach_document_connection", "detach_document_connection"].includes(command)) {
             if (state.failConnections) throw new Error("연결 저장소를 읽지 못했습니다.");
             const graph = state.connections;

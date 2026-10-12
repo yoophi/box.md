@@ -7,10 +7,16 @@ import { startHost } from "@yoophi/workbench-client/test-host";
 const bridge = vi.hoisted(() => ({
   host: null,
   content: "# 통합 문서\n\n원래 본문\n",
+  site: { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false },
 }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(async (command) => {
+  invoke: vi.fn(async (command, args) => {
+    if (command.startsWith("site_browser_")) {
+      if (command === "site_browser_open") bridge.site = { ...bridge.site, open: true, visible: false, url: args.url, title: "사이트 adapter" };
+      if (command === "site_browser_layout") bridge.site.visible = bridge.site.open && Boolean(args.bounds);
+      return { ...bridge.site };
+    }
     if (command === "get_workbench_connection")
       return {
         baseUrl: bridge.host.baseUrl,
@@ -70,6 +76,10 @@ it("runs two permission-gated ACP turns through the actual HTTP/WS client while 
     pretendToBeVisual: true,
   });
   teardown.push(() => dom.window.close());
+  const rectangle = dom.window.HTMLElement.prototype.getBoundingClientRect;
+  dom.window.HTMLElement.prototype.getBoundingClientRect = function () {
+    return this.classList.contains("site-browser-content") ? new dom.window.DOMRect(230, 156, 700, 500) : rectangle.call(this);
+  };
   for (const key of [
     "window",
     "document",
@@ -122,8 +132,16 @@ it("runs two permission-gated ACP turns through the actual HTTP/WS client while 
   const source = await view.findByRole("textbox", { name: "Markdown 원문" });
   const edited = bridge.content + "\n저장하지 않은 메모";
   fireEvent.change(source, { target: { value: edited } });
+  fireEvent.click(view.getByRole("button", { name: /사이트 브라우저/ }));
+  const address = view.getByRole("textbox", { name: "사이트 주소" });
+  await waitFor(() => expect(address.disabled).toBe(false));
+  fireEvent.change(address, { target: { value: "https://example.com/adapter" } });
+  fireEvent.click(view.getByRole("button", { name: "이동" }));
+  await waitFor(() => expect(bridge.site.visible).toBe(true));
+  fireEvent.click(view.getByRole("button", { name: "문서로 돌아가기" }));
+  expect(source.value).toBe(edited);
   fireEvent.click(view.getByRole("button", { name: "에이전트 채팅" }));
-  const start = view.getByRole("button", { name: "새 세션" });
+  const start = await view.findByRole("button", { name: "새 세션" });
   await waitFor(() => expect(start.disabled).toBe(false), { timeout: 15_000 });
   fireEvent.click(start);
   const composer = view.getByRole("textbox", { name: "채팅 메시지" });
@@ -147,10 +165,16 @@ it("runs two permission-gated ACP turns through the actual HTTP/WS client while 
     });
   }
   fireEvent.change(composer, { target: { value: "보관할 채팅 초안" } });
+  fireEvent.click(view.getByRole("button", { name: /사이트 브라우저/ }));
+  await waitFor(() => expect(bridge.site.visible).toBe(true));
+  expect(() => process.kill(pid, 0)).not.toThrow();
+  expect(composer.value).toBe("보관할 채팅 초안");
+  expect(source.value).toBe(edited);
+  fireEvent.click(view.getByRole("button", { name: "문서로 돌아가기" }));
   fireEvent.click(view.getByRole("button", { name: "채팅 숨기기" }));
   expect(() => process.kill(pid, 0)).not.toThrow();
   fireEvent.click(view.getByRole("button", { name: "에이전트 채팅" }));
-  expect(view.getByText("echo:첫 질문")).toBeTruthy();
+  expect(await view.findByText("echo:첫 질문")).toBeTruthy();
   expect(view.getByText("echo:두 번째 질문")).toBeTruthy();
   expect(composer.value).toBe("보관할 채팅 초안");
   expect(source.value).toBe(edited);

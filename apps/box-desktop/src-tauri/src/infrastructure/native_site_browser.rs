@@ -29,13 +29,26 @@ impl NativeSiteBrowser {
         }
     }
     fn current(&self) -> Result<SiteBrowserSnapshot, BrowserError> {
-        let mut snapshot = self.state.lock().map_err(error)?.clone();
         if let Some(view) = self.app.get_webview(LABEL) {
-            let (back, forward) = history(&view, None)?;
-            snapshot.can_go_back = back;
-            snapshot.can_go_forward = forward;
+            let (back, forward, loading) = history(&view, None)?;
+            let actual_url = view.url().map_err(error)?;
+            let mut state = self.state.lock().map_err(error)?;
+            state.open = true;
+            state.can_go_back = back;
+            state.can_go_forward = forward;
+            if loading == Some(true) {
+                state.loading = true;
+            }
+            if !state.loading && SiteAddress::allowed(&actual_url) {
+                state.url = Some(actual_url.to_string());
+            }
+        } else {
+            let mut state = self.state.lock().map_err(error)?;
+            state.open = false;
+            state.visible = false;
+            state.loading = false;
         }
-        Ok(snapshot)
+        Ok(self.state.lock().map_err(error)?.clone())
     }
     fn bounds(&self, bounds: SiteBounds) -> Result<tauri::Rect, BrowserError> {
         bounds.validate()?;
@@ -58,24 +71,17 @@ impl NativeSiteBrowser {
         })
     }
     fn builder(&self, address: &SiteAddress) -> WebviewBuilder<tauri::Wry> {
-        let navigation = self.state.clone();
         let loaded = self.state.clone();
         let title = self.state.clone();
         let app = self.app.clone();
         WebviewBuilder::new(LABEL, tauri::WebviewUrl::External(address.url().clone()))
-            .on_navigation(move |url| {
-                if !SiteAddress::allowed(url) {
-                    return false;
-                }
-                if let Ok(mut state) = navigation.lock() {
-                    state.navigation(url);
-                }
-                true
-            })
+            // Policy hooks also see subframe navigation. They must not replace the address bar.
+            .on_navigation(SiteAddress::allowed)
             .on_page_load(move |_, payload| {
-                if matches!(payload.event(), PageLoadEvent::Finished) {
-                    if let Ok(mut state) = loaded.lock() {
-                        state.finished(payload.url());
+                if let Ok(mut state) = loaded.lock() {
+                    match payload.event() {
+                        PageLoadEvent::Started => state.navigation(payload.url()),
+                        PageLoadEvent::Finished => state.finished(payload.url()),
                     }
                 }
             })
@@ -107,6 +113,7 @@ impl SiteBrowserHost for NativeSiteBrowser {
         self.state.lock().map_err(error)?.navigation(address.url());
         let result: Result<(), BrowserError> = (|| {
             let view = if let Some(view) = self.app.get_webview(LABEL) {
+                view.hide().map_err(error)?;
                 view.set_bounds(bounds).map_err(error)?;
                 view.navigate(address.url().clone()).map_err(error)?;
                 view
@@ -115,14 +122,21 @@ impl SiteBrowserHost for NativeSiteBrowser {
                     .app
                     .get_window("main")
                     .ok_or_else(|| error("앱 창을 찾지 못했습니다."))?;
+                let size = window.inner_size().map_err(error)?;
+                // Prepare outside the client area; a late open cannot cover a document/modal.
                 window
-                    .add_child(self.builder(&address), bounds.position, bounds.size)
+                    .add_child(
+                        self.builder(&address),
+                        tauri::PhysicalPosition::new(size.width as i32 + 1, size.height as i32 + 1),
+                        bounds.size,
+                    )
                     .map_err(error)?
             };
-            view.show().map_err(error)?;
+            view.hide().map_err(error)?;
+            view.set_bounds(bounds).map_err(error)?;
             let mut state = self.state.lock().map_err(error)?;
             state.open = true;
-            state.visible = true;
+            state.visible = false;
             Ok(())
         })();
         if let Err(cause) = result {
@@ -142,8 +156,15 @@ impl SiteBrowserHost for NativeSiteBrowser {
                 view.hide().map_err(error)?;
             }
             self.state.lock().map_err(error)?.visible = bounds.is_some();
+            self.state.lock().map_err(error)?.open = true;
+        } else {
+            let mut state = self.state.lock().map_err(error)?;
+            state.open = false;
+            state.visible = false;
+            state.loading = false;
         }
-        self.current()
+        // Visibility acknowledgements do not wait on an unrelated history query.
+        Ok(self.state.lock().map_err(error)?.clone())
     }
     fn action(&self, action: SiteAction) -> Result<SiteBrowserSnapshot, BrowserError> {
         let _operation = self.operations.lock().map_err(error)?;
@@ -164,7 +185,7 @@ impl SiteBrowserHost for NativeSiteBrowser {
     }
 }
 
-type HistoryAvailability = (Option<bool>, Option<bool>);
+type HistoryAvailability = (Option<bool>, Option<bool>, Option<bool>);
 #[cfg(target_os = "macos")]
 fn history(
     view: &tauri::Webview,
@@ -186,7 +207,11 @@ fn history(
                         }
                         _ => (),
                     }
-                    (Some(native.canGoBack()), Some(native.canGoForward()))
+                    (
+                        Some(native.canGoBack()),
+                        Some(native.canGoForward()),
+                        Some(native.isLoading()),
+                    )
                 })
                 .ok_or_else(|| error("브라우저 탐색 기록을 확인하지 못했습니다."))
         };
@@ -210,5 +235,5 @@ fn history(
         _ => Ok(()),
     }
     .map_err(error)?;
-    Ok((None, None))
+    Ok((None, None, None))
 }

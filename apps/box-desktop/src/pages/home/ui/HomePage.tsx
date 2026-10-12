@@ -6,7 +6,8 @@ import { LinkDocument } from "@/features/link-document";
 import { permalinkFromLink } from "@/entities/document";
 import { DocumentProperties } from "@/features/document-properties";
 import { DocumentConnections } from "@/features/document-connections";
-import { useEffect, useState } from "react";
+import { SiteBrowser, useSiteBrowser } from "@/features/site-browser";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { DocumentHistory } from "@/features/document-history";
 import { Button } from "@box/ui";
 import { documentName } from "@/entities/document";
@@ -17,10 +18,23 @@ import { isDesktop } from "@/shared/lib/runtime";
 
 export function HomePage() {
   const workspace = useDocumentWorkspace();
+  const browser = useSiteBrowser();
+  const [showBrowser, setShowBrowser] = useState(false);
+  const [chatBounds, setChatBounds] = useState<DOMRect | null>(null);
   const [linkToOpen, setLinkToOpen] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  useLayoutEffect(() => {
+    if (!showChat) { setChatBounds(null); return; }
+    const panel = window.document.querySelector<HTMLElement>(".agent-chat-sheet:not([hidden])");
+    const measure = () => setChatBounds(panel?.getBoundingClientRect() ?? null);
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    if (panel) observer?.observe(panel);
+    window.addEventListener("resize", measure);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [showChat]);
   const chat = useAgentChat(workspace.workspace?.path, showChat);
   const [showCards, setShowCards] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -38,6 +52,8 @@ export function HomePage() {
     reading,
   } = workspace;
   const commentKey = document.path ? `path:${document.path}` : null;
+  const blocked = Boolean(pending || overwrite || showSettings);
+  const requestDocument = (action: Parameters<typeof workspace.request>[0]) => { setShowBrowser(false); workspace.request(action); };
   return (
     <main className="document-workspace">
       <aside
@@ -52,7 +68,7 @@ export function HomePage() {
           className="workspace-picker"
           title={folder?.path}
           disabled={busy || !isDesktop()}
-          onClick={() => workspace.request("directory")}
+          onClick={() => requestDocument("directory")}
         >
           <span className="workspace-picker-name">{folder ? `▱ ${workspaceName(folder.path)}` : "작업 디렉터리 선택"}</span>
           <span>{folder ? "변경" : "＋"}</span>
@@ -60,23 +76,24 @@ export function HomePage() {
         <button
           className="new-document"
           disabled={busy}
-          onClick={() => workspace.request("new")}
+          onClick={() => requestDocument("new")}
         >
           ＋ 새 문서
         </button>
         <button
           className="sidebar-action"
           disabled={busy || !isDesktop()}
-          onClick={() => workspace.request("open")}
+          onClick={() => requestDocument("open")}
         >
           문서 열기 <kbd>⌘O</kbd>
         </button>
-        <button className="sidebar-action" disabled={!folder || busy} onClick={() => setShowCards(true)}>문서 카드 보기</button>
-        <button className="sidebar-action" disabled={!folder || !isDesktop()} aria-expanded={showChat} onClick={() => setShowChat(!showChat)}>에이전트 채팅</button>
+        <button className="sidebar-action" disabled={!folder || busy} onClick={() => { setShowBrowser(false); setShowCards(true); }}>문서 카드 보기</button>
+        <button className="sidebar-action" aria-expanded={showBrowser} disabled={busy} onClick={() => setShowBrowser(!showBrowser)}>사이트 브라우저 <span>↗</span></button>
+        <button className="sidebar-action" disabled={!folder || !isDesktop()} aria-expanded={showChat} onClick={async () => { if (showChat) setShowChat(false); else if (browser.overlaySafe || await browser.controller.hide()) setShowChat(true); }}>에이전트 채팅</button>
         <button className="sidebar-action" disabled={busy || !isDesktop()} onClick={() => setShowSettings(true)}>설정</button>
         <form className="open-document-link" onSubmit={(event) => {
           event.preventDefault();
-          try { workspace.request({ type: "permalink", path: permalinkFromLink(linkToOpen) }); setLinkError(null); }
+          try { requestDocument({ type: "permalink", path: permalinkFromLink(linkToOpen) }); setLinkError(null); }
           catch { setLinkError("유효한 box.md 문서 링크를 입력해주세요."); }
         }}><label>고정 링크로 열기<input aria-label="열 문서 링크" value={linkToOpen} onChange={(event) => setLinkToOpen(event.target.value)} placeholder="boxmd://document?…" /></label><button disabled={busy || !folder || !isDesktop()}>열기</button>{linkError && <p role="alert">{linkError}</p>}</form>
         <section
@@ -116,7 +133,7 @@ export function HomePage() {
                     disabled={busy}
                     title={file.relativePath}
                     onClick={() =>
-                      workspace.request({ type: "open-path", path: file.path })
+                      requestDocument({ type: "open-path", path: file.path })
                     }
                   >
                     <span className="document-list-icon">▤</span>
@@ -143,9 +160,12 @@ export function HomePage() {
           <span>내 파일에 남는 생각.</span>
         </p>
       </aside>
-      <section className="workspace-main" inert={Boolean(pending || overwrite || showSettings)} onClickCapture={(event) => {
+      <section className="workspace-main" hidden={showBrowser || !browser.overlaySafe} inert={blocked} onClickCapture={(event) => {
         const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
         const href = anchor?.getAttribute("href");
+        if (href && /^https?:/i.test(href)) {
+          event.preventDefault(); event.stopPropagation(); setShowBrowser(true); browser.controller.navigate(href); return;
+        }
         if (!href?.startsWith("boxmd:")) return;
         event.preventDefault(); event.stopPropagation();
         try { workspace.request({ type: "permalink", path: permalinkFromLink(href) }); }
@@ -228,11 +248,13 @@ export function HomePage() {
         </>}
       </section>
       <AgentChatSheet model={chat} open={showChat} workspace={folder?.path} blocked={Boolean(pending || overwrite || showSettings)} onHide={() => setShowChat(false)} />
-      {showSettings && <WorkspaceSettings savedPath={workspace.configuredWorkspacePath} activePath={folder?.path} onClose={() => setShowSettings(false)} onSave={(path) => {
+      <SiteBrowser controller={browser.controller} state={browser.state} visible={showBrowser} blocked={blocked} chatVisible={showChat} occlusion={chatBounds} onClose={() => setShowBrowser(false)} />
+      {showSettings && browser.overlaySafe && <WorkspaceSettings savedPath={workspace.configuredWorkspacePath} activePath={folder?.path} onClose={() => setShowSettings(false)} onSave={(path) => {
         setShowSettings(false);
         workspace.request({ type: "workspace", path });
       }} />}
-      {pending && !overwrite && (
+      {(blocked || !showBrowser) && !browser.overlaySafe && browser.state.error && <div className="browser-cover-recovery" role="alert"><span>사이트 표시를 정리하지 못했습니다. 다시 시도해주세요.</span><button onClick={() => browser.controller.retry()}>페이지 숨김 다시 시도</button></div>}
+      {pending && !overwrite && browser.overlaySafe && (
         <div className="modal-overlay">
           <section
             className="confirm-dialog"
@@ -266,7 +288,7 @@ export function HomePage() {
           </section>
         </div>
       )}
-      {overwrite && (
+      {overwrite && browser.overlaySafe && (
         <div className="modal-overlay">
           <section
             className="confirm-dialog"
