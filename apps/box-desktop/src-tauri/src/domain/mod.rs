@@ -12,3 +12,4 @@ pub struct AppInfo {
 pub mod history;
 
 pub mod comment;
+pub mod connection;

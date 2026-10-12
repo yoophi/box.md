@@ -29,3 +29,11 @@ export interface WorkspaceSnapshot {
 export interface HistoryEntry { id: string; savedAt: string; }
 
 export interface DocumentComment { id: string; body: string; createdAt: string; }
+
+export interface ConnectionEntity { id: string; name: string; }
+export interface ConnectionMembership { connectionId: string; permalink: string; }
+export interface ConnectionSnapshot {
+  version: 1;
+  entities: ConnectionEntity[];
+  memberships: ConnectionMembership[];
+}

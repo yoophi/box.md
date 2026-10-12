@@ -37,6 +37,13 @@ pub fn run() {
         .manage(ExitGuard(AtomicBool::new(false)))
         .manage(service)
         .setup(|app| {
+            app.manage(std::sync::Arc::new(
+                application::connection_service::ConnectionService::new(
+                    infrastructure::fs_connection_repository::FsConnectionRepository::new(
+                        app.path().app_data_dir()?,
+                    ),
+                ),
+            ));
             app.manage(infrastructure::workbench_shell::WorkbenchShell::new(
                 &app.path().app_data_dir()?,
             ));
@@ -58,6 +65,10 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             set_exit_allowed,
+            inbound::connection_commands::list_connections,
+            inbound::connection_commands::create_connection_entity,
+            inbound::connection_commands::attach_document_connection,
+            inbound::connection_commands::detach_document_connection,
             inbound::workbench_commands::get_workbench_connection,
             inbound::comment_commands::list_document_comments,
             inbound::comment_commands::add_document_comment,
