@@ -1,10 +1,10 @@
 # 최우측 ACP 패널 구현 계획 (gh-17, gh-44)
 
-ACP 채팅을 중앙 문서/사이트와 함께 사용하는 최우측 컬럼에 배치한다. AW의 실제 `CollapsibleResizablePanels`를 재사용하고 공용 진입점은 `packages/ui`에 둔다. 패널 전환·폭 변경으로 문서 편집기나 채팅 상태를 재생성하지 않는다. 이 계획은 현재의 고정 drawer를 대체하는 구현 순서를 정하며 gh-17의 구현 완료를 뜻하지 않는다.
+ACP 채팅을 중앙 문서/사이트와 함께 사용하는 최우측 컬럼에 배치한다. AW의 실제 `CollapsibleResizablePanels`를 재사용하고 공용 진입점은 `packages/ui`에 둔다. 패널 전환·폭 변경으로 문서 편집기나 채팅 상태를 재생성하지 않는다. 이 문서는 고정 drawer를 대체하는 구현 순서와 완료된 기반 작업의 근거를 기록하며 gh-17의 구현 완료를 뜻하지 않는다.
 
-## 현재 근거와 라이브러리 충분성
+## gh-44 조사 기준선과 라이브러리 충분성
 
-확인한 AW pin은 `662ff07ae3f4d73457712924ddb90138df1d5d69`이다. 다음 파일을 기준으로 판단한다.
+gh-44 조사 시점의 AW pin은 `662ff07ae3f4d73457712924ddb90138df1d5d69`이다. 다음 파일을 기준으로 판단한다.
 
 | 근거 | 현재 제공 기능 | Box에서 필요한 추가 범위 |
 | --- | --- | --- |
@@ -15,9 +15,9 @@ ACP 채팅을 중앙 문서/사이트와 함께 사용하는 최우측 컬럼에
 | `apps/git-explorer/src/stories/molecules.stories.tsx` | 기존 공유 패널 Storybook 사례 | 새 mount 유지/controller 사례 추가 |
 | Box `AgentChatSheet.tsx` | session별 draft·선택 상태, 현재 hidden 전환 시 mount 유지 | 고정 위치를 inline variant로 전환하고 상태 유지 |
 
-현재 `PanelContents`의 collapsed 분기는 내용 노드를 반환하지 않으므로 내용을 언마운트한다. 또한 외부 ref/controlled collapse API가 없어 sidebar 버튼에서 같은 토글 경로를 호출할 수 없다. 이 두 부분은 Box의 요구에 충분하지 않다. 공용 기능이므로 AW `packages/ui`에서 개선하고 Box에 동일 구현을 연결한다. 별도 ACP transport나 Box 전용 패널 상태 머신을 만들지 않는다.
+해당 기준선의 `PanelContents` collapsed 분기는 내용 노드를 반환하지 않으므로 내용을 언마운트한다. 또한 외부 ref/controlled collapse API가 없어 sidebar 버튼에서 같은 토글 경로를 호출할 수 없다. 이 두 부분은 Box의 요구에 충분하지 않다. 공용 기능이므로 AW `packages/ui`에서 개선하고 Box에 동일 구현을 연결한다. 별도 ACP transport나 Box 전용 패널 상태 머신을 만들지 않는다.
 
-Box workspace는 현재 AW SDK 두 패키지만 등록하며 `@box/ui`는 Button과 theme를 제공한다. `@yoophi/ui`의 실제 component를 workspace dependency로 연결하고 `@box/ui`에서 재내보낸다. AW의 원본 UI 구현을 복사해 병렬 유지하지 않는다. AW globals.css 전체 대신 필요한 Tailwind source와 background/foreground/border/ring token을 Box의 기존 linen/forest theme에 매핑한다.
+gh-44 조사 시점 Box workspace는 AW SDK 두 패키지만 등록했으며 `@box/ui`는 Button과 theme를 제공한다. `@yoophi/ui`의 실제 component를 workspace dependency로 연결하고 `@box/ui`에서 재내보낸다. AW의 원본 UI 구현을 복사해 병렬 유지하지 않는다. AW globals.css 전체 대신 필요한 Tailwind source와 background/foreground/border/ring token을 Box의 기존 linen/forest theme에 매핑한다.
 
 ## AW 공유 API 확장 (gh-45)
 
@@ -93,7 +93,7 @@ AW 별도 브랜치 [`box-md-ui-panels`](https://github.com/yoophi/agentic-works
 
 실행 로그는 `/tmp/box-md-gh45-ui-tests.log`, `/tmp/box-md-gh45-browser-rail.log`, `/tmp/box-md-gh45-ui-types.log`, `/tmp/box-md-gh45-ge-build.log`, `/tmp/box-md-gh45-browser-rail.log (Storybook build 포함)`다. 재현 명령과 API 계약은 해당 AW commit의 `docs/collapsible-panels-controller.md`에 있다.
 
-Box vendor는 아직 기존 pin이다. 실제 shared import/facade·inline 채팅·native 중앙 geometry 연결은 gh-46 범위이며 이 기록은 Box 통합 또는 native ACP 검증을 완료했다는 뜻이 아니다. gh-17 및 gh-47의 native/ACP 최종 gate는 유지한다.
+gh-45 완료 시점의 Box vendor는 기존 pin이었다. 실제 shared import/facade·inline 채팅·native 중앙 geometry 연결은 후속 gh-46 범위였으며 이 기록은 Box 통합 또는 native ACP 검증을 완료했다는 뜻이 아니다. gh-17 및 gh-47의 native/ACP 최종 gate는 유지한다.
 
 ## Box 연동 구현 결과 (gh-46, 2026-10-13)
 
