@@ -38,6 +38,20 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("document workspace flows", () => {
+  it("saves a one-line summary in front matter and reloads it without changing the body", async () => {
+    native.content = "---\npermalink: fixed\ncustom: {enabled: true}\n---\n# 원문\n\n본문 보존\n";
+    const user = userEvent.setup(); const view = render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.type(screen.getByRole("textbox", { name: "한 줄 요약" }), "원문을 설명하는 한 문장 🌱");
+    await user.click(screen.getByRole("button", { name: "문서에 적용" }));
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await waitFor(() => expect(documentProperty(native.content, "summary")).toBe("원문을 설명하는 한 문장 🌱"));
+    expect(documentProperty(native.content, "permalink")).toBe("fixed");
+    expect(native.content.endsWith("# 원문\n\n본문 보존\n")).toBe(true);
+    view.unmount(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    expect((screen.getByRole("textbox", { name: "한 줄 요약" }) as HTMLInputElement).value).toBe("원문을 설명하는 한 문장 🌱");
+  });
   it("reads without changing the original and persists separate comments across reopening", async () => {
     native.content += "\n- [ ] 아직\n";
     const original = native.content;

@@ -3,6 +3,13 @@ import { parseDocument } from "yaml";
 import { documentProperty, setDocumentProperty } from "./metadata";
 
 describe("document front matter properties", () => {
+  it("stores summary as a string and leaves existing permalink and nested metadata intact", () => {
+    const original = "---\npermalink: stable\nextra: {a: 2}\n---\nbody\n";
+    const saved = setDocumentProperty(original, "summary", "true");
+    expect(documentProperty(saved, "summary")).toBe("true");
+    expect(documentProperty(saved, "permalink")).toBe("stable");
+    expect(saved.endsWith("---\nbody\n")).toBe(true);
+  });
   it("adds a string permalink and preserves body exactly", () => {
     const body = "\n# 문서\n\n원문 🌱  \n";
     const saved = setDocumentProperty(body, "permalink", "/notes/생각");
