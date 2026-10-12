@@ -6,3 +6,5 @@ use crate::{application::AppInfoService, domain::AppInfo};
 pub fn get_app_info(service: tauri::State<'_, AppInfoService>) -> AppInfo {
     service.get()
 }
+
+pub mod comment_commands;

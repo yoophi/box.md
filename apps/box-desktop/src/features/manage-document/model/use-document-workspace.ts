@@ -26,6 +26,8 @@ type Action =
   | "reload"
   | "close"
   | "directory"
+  | "read"
+  | "edit"
   | { type: "open-path" | "workspace" | "permalink"; path: string };
 const WORKSPACE_KEY = "box.md.workspace-path";
 interface DocumentState {
@@ -47,6 +49,9 @@ const filters = [{ name: "Markdown", extensions: ["md", "markdown", "mdown"] }];
 
 export function useDocumentWorkspace() {
   const [document, setDocument] = useState<DocumentState>(emptyDocument);
+  const [reading, setReading] = useState(false);
+  const readingRef = useRef(reading);
+  readingRef.current = reading;
   const [incomingLink, setIncomingLink] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
   const workspaceRef = useRef(workspace);
@@ -68,7 +73,7 @@ export function useDocumentWorkspace() {
   const dirty = document.content !== document.baseline;
 
   const change = useCallback(
-    (content: string) => setDocument((current) => ({ ...current, content })),
+    (content: string) => { if (!readingRef.current) setDocument((current) => ({ ...current, content })); },
     [],
   );
   function begin() {
@@ -121,7 +126,7 @@ export function useDocumentWorkspace() {
   }
 
   async function insertDocumentLink(targetPath: string) {
-    if (!isDesktop() || !begin()) return;
+    if (!isDesktop() || readingRef.current || !begin()) return;
     try {
       if (!workspaceRef.current?.documents.some((file) => file.path === targetPath)) throw new Error("현재 작업 디렉토리의 문서를 선택해주세요.");
       if (targetPath === docRef.current.path) throw new Error("다른 문서를 선택해주세요.");
@@ -140,7 +145,7 @@ export function useDocumentWorkspace() {
   }
 
   const saveDocument = useCallback(async (saveAs = false): Promise<boolean> => {
-    if (!begin()) return false;
+    if (readingRef.current || !begin()) return false;
     try {
       if (!isDesktop()) {
         setNotice("파일 저장은 데스크톱 앱에서 사용할 수 있습니다.");
@@ -200,7 +205,14 @@ export function useDocumentWorkspace() {
   const execute = useCallback(async (action: Action) => {
     if (!begin()) return;
     try {
+      if (action === "read" || action === "edit") {
+        if (action === "read") setDocument((current) => ({ ...current, content: current.baseline, key: ++nextDocumentKey }));
+        setReading(action === "read");
+        setNotice(action === "read" ? "읽기 모드 · 댓글로 의견을 남길 수 있습니다." : "편집 모드입니다.");
+        return;
+      }
       if (action === "new") {
+        setReading(false);
         setDocument(emptyDocument());
         setNotice("새 문서입니다.");
         return;
@@ -237,6 +249,7 @@ export function useDocumentWorkspace() {
           /* Preference persistence is optional. */
         }
         setDocument(emptyDocument());
+        setReading(false);
         setNotice("작업 디렉터리를 열었습니다. 목록에서 문서를 선택해주세요.");
         return;
       }
@@ -439,8 +452,9 @@ export function useDocumentWorkspace() {
 
   return {
     document,
+    reading,
     insertDocumentLink,
-    restoreVersion: (content: string) => setDocument((current) => ({ ...current, content, key: ++nextDocumentKey })),
+    restoreVersion: (content: string) => { if (!readingRef.current && !busyRef.current) setDocument((current) => ({ ...current, content, key: ++nextDocumentKey })); },
     workspace,
     refreshing,
     refreshWorkspace,

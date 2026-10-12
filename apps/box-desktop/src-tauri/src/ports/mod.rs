@@ -7,3 +7,5 @@ pub trait AppInfoProvider: Send + Sync {
 }
 
 pub mod document_history;
+
+pub mod comment_repository;

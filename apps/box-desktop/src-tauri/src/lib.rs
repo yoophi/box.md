@@ -37,6 +37,11 @@ pub fn run() {
         .manage(ExitGuard(AtomicBool::new(false)))
         .manage(service)
         .setup(|app| {
+            app.manage(application::comment_service::CommentService::new(
+                infrastructure::fs_comment_repository::FsCommentRepository::new(
+                    app.path().app_data_dir()?.join("comments"),
+                ),
+            ));
             app.manage(application::document_service::DocumentService::new(
                 infrastructure::fs_document_repository::FsDocumentRepository,
                 infrastructure::git_document_history::GitDocumentHistory::new(
@@ -50,6 +55,8 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             set_exit_allowed,
+            inbound::comment_commands::list_document_comments,
+            inbound::comment_commands::add_document_comment,
             inbound::get_app_info,
             inbound::document_commands::open_document,
             inbound::document_commands::save_document,

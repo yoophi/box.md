@@ -1,3 +1,4 @@
+import { DocumentComments } from "@/features/document-comments";
 import { LinkDocument } from "@/features/link-document";
 import { permalinkFromLink } from "@/entities/document";
 import { DocumentProperties } from "@/features/document-properties";
@@ -26,7 +27,9 @@ export function HomePage() {
     overwrite,
     workspace: folder,
     refreshing,
+    reading,
   } = workspace;
+  const commentKey = document.path ? `path:${document.path}` : null;
   return (
     <main className="document-workspace">
       <aside
@@ -139,7 +142,7 @@ export function HomePage() {
       }}>
         <header className="document-header">
           <div className="document-title">
-            <span className="file-label">DOCUMENT</span>
+            <span className="file-label">{reading ? "읽기 모드 · READ ONLY" : "편집 모드 · DOCUMENT"}</span>
             <h1>
               {documentName(document.path)}
               {dirty && (
@@ -153,6 +156,7 @@ export function HomePage() {
             </span>
           </div>
           <div className="file-actions">
+            <button className="plain-button" disabled={busy} aria-pressed={reading} onClick={() => workspace.request(reading ? "edit" : "read")}>{reading ? "편집 모드로 전환" : "읽기 모드로 전환"}</button>
             <button className="plain-button" disabled={busy || !document.path || !isDesktop()} onClick={() => setShowHistory(!showHistory)}>히스토리</button>
             {document.path && (
               <button
@@ -165,13 +169,13 @@ export function HomePage() {
             )}
             <button
               className="plain-button"
-              disabled={busy || !isDesktop()}
+              disabled={busy || reading || !isDesktop()}
               onClick={() => void workspace.saveDocument(true)}
             >
               다른 이름 저장
             </button>
             <Button
-              disabled={busy || !isDesktop()}
+              disabled={busy || reading || !isDesktop()}
               onClick={() => void workspace.saveDocument()}
             >
               {busy ? "처리 중…" : "저장"}
@@ -185,14 +189,18 @@ export function HomePage() {
             <button onClick={workspace.dismissError}>닫기</button>
           </div>
         )}
-        {folder && <LinkDocument documents={folder.documents} currentPath={document.path} disabled={busy} onInsert={workspace.insertDocumentLink} />}
-        <DocumentProperties content={document.content} disabled={busy} onChange={workspace.restoreVersion} />
-        {showHistory && document.path ? <DocumentHistory key={document.path} path={document.path} dirty={dirty} busy={busy} onRestore={workspace.restoreVersion} onClose={() => setShowHistory(false)} /> : <MarkdownEditor
+        {folder && !reading && <LinkDocument documents={folder.documents} currentPath={document.path} disabled={busy} onInsert={workspace.insertDocumentLink} />}
+        <DocumentProperties content={document.content} disabled={busy || reading} onChange={workspace.restoreVersion} />
+        <div className={reading ? "reading-layout" : "editor-layout"}>
+        {showHistory && document.path ? <DocumentHistory key={document.path} path={document.path} dirty={dirty} busy={busy || reading} onRestore={workspace.restoreVersion} onClose={() => setShowHistory(false)} /> : <MarkdownEditor
           key={document.key}
           content={document.content}
           onChange={workspace.change}
           disabled={busy}
+          readOnly={reading}
         />}
+        {reading && (document.path && commentKey ? <DocumentComments key={commentKey} documentKey={commentKey} /> : <aside className="document-comments"><p>댓글을 남기려면 먼저 문서를 저장해주세요.</p></aside>)}
+        </div>
         <footer className="document-status" role="status">
           <span>{dirty ? "저장하지 않은 변경사항" : notice}</span>
           <span>

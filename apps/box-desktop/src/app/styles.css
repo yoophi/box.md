@@ -598,3 +598,23 @@ kbd {
 .open-document-link p { margin: 0; color: #8d4e39; }
 
 .document-properties select { min-width: 180px; max-width: 300px; padding: 7px 10px; border: 1px solid #c0cbb3; border-radius: 3px; background: #faf9f2; color: #344a3d; font-size: 12px; }
+
+.editor-layout { display: flex; flex: 1; min-height: 0; }
+.reading-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; flex: 1; min-height: 0; }
+.document-comments { border-left: 1px solid #d8ddcf; background: #eeeee4; padding: 20px; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.comments-heading { display: flex; justify-content: space-between; align-items: center; }
+.comments-heading h2 { font-size: 14px; font-weight: 500; margin: 0; }
+.comments-heading h2 span { opacity: .5; margin-left: 6px; }
+.comments-heading button { border: 0; background: transparent; color: #77816d; font-size: 10px; }
+.comments-list { list-style: none; margin: 20px 0; padding: 0; }
+.comments-list li { border-bottom: 1px solid #d8ddcf; padding: 14px 0; }
+.comments-list time { font-size: 9px; color: #8c9284; }
+.comments-list p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.8; margin: 8px 0; }
+.comments-empty { color: #8c9284; font-size: 11px; }
+.document-comments form { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.document-comments label { font-size: 10px; color: #77816d; }
+.document-comments textarea { display: block; margin-top: 8px; box-sizing: border-box; width: 100%; min-height: 100px; resize: vertical; border: 1px solid #c0cbb3; border-radius: 4px; padding: 10px; font-size: 12px; background: #faf9f2; }
+.document-comments form button { border: 1px solid #bcbfab; background: #d5dfcb; color: #244f42; padding: 10px; border-radius: 4px; }
+.document-comments small { font-size: 9px; color: #8c9284; }
+.comment-error { color: #8d4e39; font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 850px) { .reading-layout { grid-template-columns: minmax(0, 1fr); overflow: auto; } .reading-layout .editor-surface { min-height: 300px; } .document-comments { border-top: 1px solid #d8ddcf; border-left: 0; overflow: visible; } }

@@ -17,3 +17,5 @@ impl AppInfoService {
         self.provider.app_info()
     }
 }
+
+pub mod comment_service;

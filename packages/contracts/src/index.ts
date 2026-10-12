@@ -27,3 +27,5 @@ export interface WorkspaceSnapshot {
 }
 
 export interface HistoryEntry { id: string; savedAt: string; }
+
+export interface DocumentComment { id: string; body: string; createdAt: string; }

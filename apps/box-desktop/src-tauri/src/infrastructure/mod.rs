@@ -16,3 +16,5 @@ impl AppInfoProvider for NativeAppInfo {
 }
 
 pub mod git_document_history;
+
+pub mod fs_comment_repository;

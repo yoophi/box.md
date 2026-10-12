@@ -11,6 +11,7 @@ import type { Editor } from "@tiptap/react";
 interface Props {
   content: string;
   disabled: boolean;
+  readOnly?: boolean;
   onChange: (content: string) => void;
 }
 
@@ -39,13 +40,13 @@ function Tool({
   );
 }
 
-function RichEditor({ content, disabled, onChange }: Props) {
+function RichEditor({ content, disabled, readOnly, onChange }: Props) {
   const { prefix, body } = splitDocument(content);
   const [link, setLink] = useState<string | null>(null);
   const editor = useEditor({
     extensions: editorExtensions(),
     content: markdownToDocument(body),
-    editable: !disabled,
+    editable: !disabled && !readOnly,
     editorProps: {
       attributes: {
         class: "document-prose",
@@ -56,8 +57,8 @@ function RichEditor({ content, disabled, onChange }: Props) {
     onUpdate: ({ editor }) => onChange(prefix + editor.getMarkdown()),
   });
   useEffect(() => {
-    editor?.setEditable(!disabled, false);
-  }, [disabled, editor]);
+    editor?.setEditable(!disabled && !readOnly, false);
+  }, [disabled, readOnly, editor]);
   const format = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -74,7 +75,7 @@ function RichEditor({ content, disabled, onChange }: Props) {
   }
   return (
     <>
-      <div className="format-toolbar" aria-label="서식 도구">
+      {!readOnly && <div className="format-toolbar" aria-label="서식 도구">
         <Tool
           label="제목"
           active={format?.heading}
@@ -155,8 +156,8 @@ function RichEditor({ content, disabled, onChange }: Props) {
           disabled={disabled || !editor.can().redo()}
           action={() => command((e) => e.chain().focus().redo().run())}
         />
-      </div>
-      {link !== null && (
+      </div>}
+      {!readOnly && link !== null && (
         <form
           className="link-form"
           onSubmit={(event) => {
@@ -241,8 +242,9 @@ export function MarkdownEditor(props: Props) {
           aria-label="Markdown 원문"
           value={props.content}
           disabled={props.disabled}
+          readOnly={props.readOnly}
           spellCheck={false}
-          onChange={(event) => props.onChange(event.target.value)}
+          onChange={(event) => { if (!props.readOnly) props.onChange(event.target.value); }}
           placeholder="# 새로운 생각"
         />
       ) : (
