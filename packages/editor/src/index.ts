@@ -8,6 +8,7 @@ import { parseMarkdownFrontMatter } from "./frontMatter";
 import { marked } from "marked";
 import { MermaidBlock, restoreMermaidLineEndings } from "./mermaid";
 import { PreservedCodeBlock } from "./codeBlock";
+import { Wikilink } from "./wikilink";
 
 export function editorExtensions() {
   return [
@@ -19,6 +20,7 @@ export function editorExtensions() {
     // Paragraph remains the schema's default block; Mermaid still precedes the code parser.
     MermaidBlock,
     PreservedCodeBlock,
+    Wikilink,
     Image,
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -57,7 +59,7 @@ export function richTextIssue(markdown: string): string | null {
   const outsideCode = (tokens: Token[]): string =>
     tokens
       .map((token) =>
-        token.type === "code" || token.type === "codespan"
+        token.type === "code" || token.type === "codespan" || token.type === "wikilink"
           ? ""
           : token.tokens
             ? outsideCode(token.tokens)
@@ -69,7 +71,7 @@ export function richTextIssue(markdown: string): string | null {
   const prose = outsideCode(marked.lexer(body) as Token[]);
   // These dialects are outside this editor schema; keep the full original in source mode.
   if (
-    /\[\[|\(\([a-zA-Z0-9-]+\)\)|^\s*\[\^|^\s*\[[^\]]+\]:|<\/?[a-zA-Z][^>]*>|^\$\$|\$[^\n$]+\$/m.test(
+    /\(\([a-zA-Z0-9-]+\)\)|^\s*\[\^|^\s*\[[^\]]+\]:|<\/?[a-zA-Z][^>]*>|^\$\$|\$[^\n$]+\$/m.test(
       prose,
     )
   )
@@ -83,3 +85,4 @@ export { parseMarkdownFrontMatter } from "./frontMatter";
 
 export { documentProperty, setDocumentProperty } from "./metadata";
 export { MermaidBlock } from "./mermaid";
+export { Wikilink } from "./wikilink";

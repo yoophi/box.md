@@ -36,7 +36,6 @@ describe("Markdown document preservation", () => {
     expect(output).toContain("생각");
   });
   it.each([
-    "[[Logseq]]",
     "<iframe src='view.html'></iframe>",
     "[^ref]: footnote",
     "---\ninvalid: [\n---\nbody",
