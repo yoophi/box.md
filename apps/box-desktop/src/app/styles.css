@@ -590,3 +590,9 @@ kbd {
 .document-properties button { border: 1px solid #bcbfab; background: #e5eadc; border-radius: 3px; padding: 7px 10px; color: #244f42; }
 .document-properties small { color: #8c9284; }
 .document-properties p { width: 100%; color: #8d4e39; margin: 0; }
+
+.open-document-link { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-top: 8px; color: #77816d; font-size: 10px; }
+.open-document-link label { min-width: 0; flex: 1; }
+.open-document-link input { display: block; margin-top: 6px; width: 100%; box-sizing: border-box; border: 1px solid #c0cbb3; background: #f5f3eb; padding: 7px; border-radius: 3px; font-size: 10px; }
+.open-document-link button { border: 0; padding: 7px; border-radius: 3px; background: #d5dfcb; color: #244f42; }
+.open-document-link p { margin: 0; color: #8d4e39; }

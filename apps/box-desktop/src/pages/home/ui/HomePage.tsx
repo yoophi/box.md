@@ -1,3 +1,4 @@
+import { permalinkFromLink } from "@/entities/document";
 import { DocumentProperties } from "@/features/document-properties";
 import { useEffect, useState } from "react";
 import { DocumentHistory } from "@/features/document-history";
@@ -10,6 +11,8 @@ import { isDesktop } from "@/shared/lib/runtime";
 
 export function HomePage() {
   const workspace = useDocumentWorkspace();
+  const [linkToOpen, setLinkToOpen] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   useEffect(() => setShowHistory(false), [workspace.document.key]);
   const {
@@ -56,6 +59,11 @@ export function HomePage() {
         >
           문서 열기 <kbd>⌘O</kbd>
         </button>
+        <form className="open-document-link" onSubmit={(event) => {
+          event.preventDefault();
+          try { workspace.request({ type: "permalink", path: permalinkFromLink(linkToOpen) }); setLinkError(null); }
+          catch { setLinkError("유효한 box.md 문서 링크를 입력해주세요."); }
+        }}><label>고정 링크로 열기<input aria-label="열 문서 링크" value={linkToOpen} onChange={(event) => setLinkToOpen(event.target.value)} placeholder="boxmd://document?…" /></label><button disabled={busy || !folder || !isDesktop()}>열기</button>{linkError && <p role="alert">{linkError}</p>}</form>
         <section
           className="sidebar-section document-list-section"
           aria-label="작업 디렉터리 문서"

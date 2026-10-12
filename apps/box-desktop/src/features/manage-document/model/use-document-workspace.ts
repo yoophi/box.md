@@ -1,3 +1,4 @@
+import { getCurrent, onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -9,6 +10,9 @@ import {
   documentRevision,
   documentName,
   errorMessage,
+  withDocumentPermalink,
+  resolvePermalink,
+  permalinkFromLink,
 } from "@/entities/document";
 import type { WorkspaceSnapshot } from "@box/contracts";
 import { listWorkspace } from "@/entities/workspace";
@@ -20,7 +24,7 @@ type Action =
   | "reload"
   | "close"
   | "directory"
-  | { type: "open-path" | "workspace"; path: string };
+  | { type: "open-path" | "workspace" | "permalink"; path: string };
 const WORKSPACE_KEY = "box.md.workspace-path";
 interface DocumentState {
   path: string | null;
@@ -41,6 +45,7 @@ const filters = [{ name: "Markdown", extensions: ["md", "markdown", "mdown"] }];
 
 export function useDocumentWorkspace() {
   const [document, setDocument] = useState<DocumentState>(emptyDocument);
+  const [incomingLink, setIncomingLink] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceSnapshot | null>(null);
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
@@ -97,10 +102,13 @@ export function useDocumentWorkspace() {
     expectedRevision: string | null,
   ): Promise<boolean> {
     const current = docRef.current;
-    const saved = await writeDocument(path, current.content, expectedRevision);
+    const content = withDocumentPermalink(current.content);
+    const saved = await writeDocument(path, content, expectedRevision);
     setDocument((state) => ({
       ...state,
       path: saved.path,
+      content: saved.content,
+      key: state.content === saved.content ? state.key : ++nextDocumentKey,
       baseline: saved.content,
       revision: saved.revision,
     }));
@@ -211,6 +219,18 @@ export function useDocumentWorkspace() {
         setNotice("작업 디렉터리를 열었습니다. 목록에서 문서를 선택해주세요.");
         return;
       }
+      if (typeof action === "object" && action.type === "permalink") {
+        const root = workspaceRef.current?.path;
+        if (!root) throw new Error("먼저 작업 디렉토리를 선택해주세요.");
+        const listed = await listWorkspace(root);
+        if (listed.truncated) throw new Error("문서 목록이 너무 커 전체 고정 링크를 확인할 수 없습니다. 더 작은 작업 디렉토리를 선택해주세요.");
+        const path = await resolvePermalink(listed.documents, action.path, readDocument);
+        const snapshot = await readDocument(path);
+        setWorkspace(listed);
+        setDocument({ ...snapshot, baseline: snapshot.content, key: ++nextDocumentKey });
+        setNotice("고정 링크로 문서를 열었습니다.");
+        return;
+      }
       const path =
         typeof action === "object"
           ? action.path
@@ -277,6 +297,27 @@ export function useDocumentWorkspace() {
       /* No stored workspace. */
     }
   }, [execute]);
+
+  useEffect(() => {
+    if (!isDesktop()) return;
+    let disposed = false;
+    let stop: (() => void) | undefined;
+    const receive = (urls: string[]) => {
+      try { if (urls[0]) { setIncomingLink(permalinkFromLink(urls[0])); if (!workspaceRef.current) setNotice("링크 문서를 열려면 작업 디렉토리를 선택해주세요."); } }
+      catch (cause) { setError(errorMessage(cause)); }
+    };
+    void onOpenUrl(receive).then((unlisten) => {
+      if (disposed) unlisten(); else stop = unlisten;
+      return getCurrent();
+    }).then((urls) => { if (!disposed && urls) receive(urls); })
+      .catch((cause) => { if (!disposed) setError(errorMessage(cause)); });
+    return () => { disposed = true; stop?.(); };
+  }, []);
+  useEffect(() => {
+    if (!incomingLink || !workspace || busy || pending || overwrite) return;
+    request({ type: "permalink", path: incomingLink });
+    setIncomingLink(null);
+  }, [incomingLink, workspace, busy, pending, overwrite, request]);
 
   useEffect(() => {
     const onFocus = () => {

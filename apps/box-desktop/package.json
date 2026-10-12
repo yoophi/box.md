@@ -18,6 +18,8 @@
     "@box/editor": "workspace:*",
     "@box/ui": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-clipboard-manager": "^2",
+    "@tauri-apps/plugin-deep-link": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tiptap/pm": "3.31.4",
     "@tiptap/react": "3.31.4",

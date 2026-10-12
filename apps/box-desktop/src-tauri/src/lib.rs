@@ -17,6 +17,14 @@ fn set_exit_allowed(allowed: bool, guard: tauri::State<'_, ExitGuard>) {
 pub fn run() {
     let service = application::AppInfoService::new(infrastructure::NativeAppInfo);
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .menu(infrastructure::native_menu::build)
         .on_menu_event(|app, event| {
