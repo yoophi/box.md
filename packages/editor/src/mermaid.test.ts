@@ -96,6 +96,7 @@ describe("Mermaid source preservation", () => {
   });
   it("creates a leaf atom with no editable text content", () => {
     const schema = getSchema(editorExtensions());
+    expect(schema.topNodeType.contentMatch.defaultType?.name).toBe("paragraph");
     const chart = schema.nodeFromJSON(
       markdownToDocument("```mermaid\ngraph TD\nA --> B\n```").content![0],
     );

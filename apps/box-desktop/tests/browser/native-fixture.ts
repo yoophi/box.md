@@ -15,10 +15,14 @@ declare global {
 export async function seedWorkspace(
   page: Page,
   count: number,
-  options: { initialPath?: string | null; invalidRoots?: string[] } = {},
+  options: {
+    initialPath?: string | null;
+    invalidRoots?: string[];
+    contents?: Record<string, string>;
+  } = {},
 ) {
   await page.addInitScript(
-    ({ count, initialPath, invalidRoots }) => {
+    ({ count, initialPath, invalidRoots, contents }) => {
       const key = "box.md.workspace-path";
       if (initialPath && !localStorage.getItem(key))
         localStorage.setItem(key, initialPath);
@@ -39,7 +43,7 @@ export async function seedWorkspace(
         const name = `note-${String(index + 1).padStart(3, "0")}.md`;
         return { name, relativePath: name, path: `/fixture/${name}` };
       });
-      const content = new Map<string, string>(),
+      const content = new Map<string, string>(Object.entries(contents)),
         revisions = new Map<string, number>();
       let callbackId = 0;
       const callbacks = new Map<number, unknown>();
@@ -120,6 +124,7 @@ export async function seedWorkspace(
       initialPath:
         options.initialPath === undefined ? "/fixture" : options.initialPath,
       invalidRoots: options.invalidRoots ?? [],
+      contents: options.contents ?? {},
     },
   );
 }

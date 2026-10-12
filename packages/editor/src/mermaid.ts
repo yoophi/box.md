@@ -1,14 +1,18 @@
 import { Node, nodeInputRule, type JSONContent } from "@tiptap/core";
 import { marked } from "marked";
+import { createMermaidView } from "./mermaidView";
 
 /** A leaf node keeps diagram source outside ProseMirror's editable text content. */
 export const MermaidBlock = Node.create({
   name: "mermaidBlock",
-  priority: 1000,
+  priority: 100,
   group: "block",
   atom: true,
   isolating: true,
   marks: "",
+  addNodeView() {
+    return ({ node }) => createMermaidView(node);
+  },
   addInputRules() {
     return [
       nodeInputRule({

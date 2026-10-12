@@ -11,12 +11,13 @@ import { PreservedCodeBlock } from "./codeBlock";
 
 export function editorExtensions() {
   return [
-    MermaidBlock,
     StarterKit.configure({
       codeBlock: false,
       link: { openOnClick: false, protocols: ["boxmd"] },
       underline: false,
     }),
+    // Paragraph remains the schema's default block; Mermaid still precedes the code parser.
+    MermaidBlock,
     PreservedCodeBlock,
     Image,
     TaskList,
