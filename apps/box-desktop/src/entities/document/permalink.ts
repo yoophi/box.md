@@ -61,7 +61,7 @@ function documentTitle(snapshot: DocumentSnapshot) {
 }
 
 /** A partial listing or failed read cannot establish a permalink's uniqueness. */
-export async function resolveWikilinkTargets(
+export async function resolveDocumentTargets(
   workspace: WorkspaceSnapshot,
   ids: string[],
   read: (path: string) => Promise<DocumentSnapshot>,

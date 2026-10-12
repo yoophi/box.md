@@ -135,6 +135,69 @@ kbd {
   letter-spacing: -0.03em;
   overflow-wrap: anywhere;
 }
+.document-connections {
+  flex-shrink: 0;
+  max-height: 34vh;
+  overflow: auto;
+  padding: 10px 32px;
+  border-bottom: 1px solid #dbddd0;
+  background: #f2f1e8;
+  font-size: 11px;
+  color: #52664f;
+}
+.connection-strip, .connection-chips, .connection-forms, .connection-catalog {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.connection-strip { gap: 14px; position: sticky; top: -10px; background: #f2f1e8; z-index: 1; padding: 5px 0; }
+.connection-chips { flex: 1; min-width: 0; }
+.connection-chips > small { color: #858b7e; }
+.connection-chip {
+  display: inline-flex;
+  overflow: hidden;
+  max-width: 100%;
+  border: 1px solid #b8c5ae;
+  border-radius: 14px;
+  background: #e2e9da;
+}
+.connection-chip button, .connection-catalog button {
+  border: 0;
+  padding: 4px 9px;
+  background: transparent;
+  color: #244f42;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.connection-chip button[aria-pressed="true"], .connection-catalog button[aria-pressed="true"] { background: #d0ddc5; }
+.connection-chip button + button { border-left: 1px solid #bdcbb3; }
+.connection-manager { margin-top: 7px; }
+.connection-manager summary { cursor: pointer; font-size: 10px; color: #738268; }
+.connection-forms { margin: 12px 0; gap: 12px 20px; align-items: end; }
+.connection-forms form { display: flex; align-items: end; gap: 7px; flex-wrap: wrap; }
+.connection-forms label { display: grid; gap: 5px; font-size: 10px; }
+.connection-forms input, .connection-forms select {
+  width: 200px;
+  max-width: 100%;
+  padding: 7px 9px;
+  border: 1px solid #b8c5ae;
+  border-radius: 4px;
+  background: #faf9f2;
+}
+.connection-forms button, .connection-error button { border: 1px solid #b8c5ae; border-radius: 4px; background: #e2e9da; padding: 7px 10px; font-size: 10px; }
+.connection-hint, .connection-notice { margin: 7px 0; font-size: 10px; }
+.connection-error { color: #8c473d; margin: 7px 0; }
+.connection-error button { margin-left: 8px; }
+.connection-related { margin-top: 9px; border-top: 1px solid #d9ddcf; }
+.connection-related header { display: flex; align-items: center; justify-content: space-between; }
+.connection-related ul { padding: 0; margin: 0; list-style: none; }
+.connection-related li { display: flex; align-items: center; gap: 9px; padding: 3px 0; }
+.connection-related li button { background: transparent; border: 0; color: #244f42; text-align: left; padding: 5px 0; overflow-wrap: anywhere; }
+.connection-related small { color: #8c473d; }
+.workspace-main:has(.connection-related) .document-prose { padding-top: 16px; padding-bottom: 48px; }
+.document-connections:has(.connection-related) { max-height: 24vh; }
+.workspace-main:has(.connection-related) .document-prose > :first-child { margin-top: 0; }
 .dirty-dot {
   color: #b38a38;
   font-size: 9px;

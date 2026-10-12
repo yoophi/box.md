@@ -37,6 +37,7 @@ vi.mock("@tauri-apps/api/core", () => ({
         revision: "1",
       };
     if (command === "document_revision") return "1";
+    if (command === "list_connections") return { version: 1, entities: [], memberships: [] };
     return null;
   }),
 }));

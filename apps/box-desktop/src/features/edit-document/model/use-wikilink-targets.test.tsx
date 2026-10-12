@@ -1,12 +1,10 @@
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { DocumentSnapshot, WorkspaceSnapshot } from "@box/contracts";
-import { readDocument } from "@/entities/document";
+import { readDocument } from "@/entities/document/api";
 import { useWikilinkTargets } from "./use-wikilink-targets";
 
-vi.mock("@/entities/document", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/entities/document")>(), readDocument: vi.fn(),
-}));
+vi.mock("@/entities/document/api", () => ({ readDocument: vi.fn() }));
 afterEach(() => { cleanup(); vi.mocked(readDocument).mockReset(); });
 const workspace = (root: string): WorkspaceSnapshot => ({
   path: root, truncated: false,

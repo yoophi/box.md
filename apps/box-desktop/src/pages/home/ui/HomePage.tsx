@@ -5,6 +5,7 @@ import { DocumentComments } from "@/features/document-comments";
 import { LinkDocument } from "@/features/link-document";
 import { permalinkFromLink } from "@/entities/document";
 import { DocumentProperties } from "@/features/document-properties";
+import { DocumentConnections } from "@/features/document-connections";
 import { useEffect, useState } from "react";
 import { DocumentHistory } from "@/features/document-history";
 import { Button } from "@box/ui";
@@ -205,6 +206,7 @@ export function HomePage() {
         )}
         {folder && !reading && <LinkDocument documents={folder.documents} currentPath={document.path} disabled={busy} onInsert={workspace.insertDocumentLink} />}
         <DocumentProperties content={document.content} disabled={busy || reading} onChange={workspace.restoreVersion} />
+        <DocumentConnections path={document.path} content={document.content} baseline={document.baseline} workspace={folder} disabled={busy} onOpen={(id) => workspace.request({ type: "permalink", path: id })} />
         <div className={reading ? "reading-layout" : "editor-layout"}>
         {showHistory && document.path ? <DocumentHistory key={document.path} path={document.path} dirty={dirty} busy={busy || reading} onRestore={workspace.restoreVersion} onClose={() => setShowHistory(false)} /> : <MarkdownEditor
           key={document.key}

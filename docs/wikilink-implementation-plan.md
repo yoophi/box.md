@@ -43,7 +43,7 @@ gh-32의 기본 표시명은 별칭 또는 permalink였다. 대상의 최신 제
 
 공용 `setWikilinkTargets(editor, targets)` interface는 NodeView 표시만 갱신한다. 본문 transaction이나 undo 항목을 만들지 않는다. 별칭이 있으면 제목이 변경되어도 별칭을 유지한다. 이름과 상태는 DOM `textContent`로 표시하며 NodeView 삭제 시 표시 갱신 구독을 해제한다. 이미 폐기된 편집기에는 결과를 적용하지 않는다.
 
-앱의 `resolveWikilinkTargets`는 현재 workspace의 문서를 8개씩 읽고 기존 고정 링크 이동과 같은 permalink 인덱스 판정을 사용한다. frontmatter title → 첫 실제 Markdown 제목 → 파일명 순서로 표시명을 결정한다. 코드 안의 제목 표기는 제외한다. 조회 실패나 부분 목록에서는 유일성을 확인할 수 없으므로 링크를 임의로 선택하지 않는다. 누락, 중복, 조회/제목 오류를 구분하고 이동 가능한 href를 제공하지 않는다. `__proto__` 같은 식별자도 안전하게 처리하도록 Map을 사용한다.
+앱의 문서 조회는 현재 `resolveDocumentTargets`로 제공한다(gh-36에서 명시적 연결 화면과 조회를 공유하기 위해 이름을 변경했다). 현재 workspace의 문서를 8개씩 읽고 기존 고정 링크 이동과 같은 permalink 인덱스 판정을 사용한다. frontmatter title → 첫 실제 Markdown 제목 → 파일명 순서로 표시명을 결정한다. 코드 안의 제목 표기는 제외한다. 조회 실패나 부분 목록에서는 유일성을 확인할 수 없으므로 링크를 임의로 선택하지 않는다. 누락, 중복, 조회/제목 오류를 구분하고 이동 가능한 href를 제공하지 않는다. `__proto__` 같은 식별자도 안전하게 처리하도록 Map을 사용한다.
 
 React 조회 hook은 frontmatter와 code/inline code 안의 표기를 제외하고 실제 위키 링크만 조회한다. 동일한 링크가 유지되는 주변 본문 편집에서는 디렉터리를 다시 읽지 않는다. 작업 디렉터리가 바뀌면 이전 결과를 즉시 표시에서 제외하고 오래된 비동기 완료를 무시한다. 문서 열기·저장·목록 새로고침은 새 workspace 결과로 최신 제목을 다시 조회한다. 작업 디렉터리가 없으면 선택 안내와 오류 상태를 표시한다.
 

@@ -12,6 +12,7 @@ vi.mock("@/entities/agent-chat", () => ({ createChatClient: vi.fn() }));
 const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]> }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, args: Record<string, unknown>) => {
+  if (command === "list_connections") return { version: 1, entities: [], memberships: [] };
   if (command === "list_workspace_documents") {
     if (native.brokenRoots.includes(String(args.path))) throw new Error("작업 디렉터리에 접근할 수 없습니다.");
     if (args.path !== "/workspace") return { path: args.path, documents: [{ path: `${args.path}/other.md`, name: "other.md", relativePath: "other.md" }], truncated: false };

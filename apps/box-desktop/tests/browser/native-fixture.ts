@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import type { WorkspaceDocument } from "@box/contracts";
+import type { ConnectionSnapshot, WorkspaceDocument } from "@box/contracts";
 interface NativeFixture {
   pickedFolder: string | null;
   invalidRoots: string[];
@@ -8,6 +8,8 @@ interface NativeFixture {
   documents: WorkspaceDocument[];
   content: Map<string, string>;
   truncated: boolean;
+  connections: ConnectionSnapshot;
+  failConnections: boolean;
 }
 declare global {
   interface Window {
@@ -38,6 +40,8 @@ export async function seedWorkspace(
         documents: [],
         content: new Map(Object.entries(contents)),
         truncated: false,
+        connections: { version: 1, entities: [], memberships: [] },
+        failConnections: false,
       };
       window.__BOX_BROWSER_FIXTURE__ = state;
       const setItem = Storage.prototype.setItem;
@@ -69,6 +73,22 @@ export async function seedWorkspace(
         },
         async invoke(command: string, args: Record<string, unknown> = {}) {
           const path = String(args.path ?? "");
+          if (["list_connections", "create_connection_entity", "attach_document_connection", "detach_document_connection"].includes(command)) {
+            if (state.failConnections) throw new Error("연결 저장소를 읽지 못했습니다.");
+            const graph = state.connections;
+            if (command === "create_connection_entity") {
+              const name = String(args.name).trim();
+              if (!name || graph.entities.some((entity) => entity.name.toLowerCase() === name.toLowerCase())) throw new Error("같은 이름의 연결 엔티티가 이미 있습니다.");
+              graph.entities.push({ id: crypto.randomUUID(), name });
+            }
+            if (command === "attach_document_connection") {
+              const connectionId = String(args.connectionId), permalink = String(args.permalink);
+              if (!graph.entities.some((entity) => entity.id === connectionId)) throw new Error("연결 엔티티를 찾지 못했습니다.");
+              if (!graph.memberships.some((edge) => edge.connectionId === connectionId && edge.permalink === permalink)) graph.memberships.push({ connectionId, permalink });
+            }
+            if (command === "detach_document_connection") graph.memberships = graph.memberships.filter((edge) => !(edge.connectionId === args.connectionId && edge.permalink === args.permalink));
+            return structuredClone(graph);
+          }
           if (command === "list_workspace_documents") {
             if (state.invalidRoots.includes(path))
               throw new Error("작업 디렉터리에 접근할 수 없습니다.");
