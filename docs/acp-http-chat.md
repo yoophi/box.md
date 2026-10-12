@@ -56,3 +56,23 @@ Tauri 실행·빌드 전에 `scripts/prepare-workbench-server.mjs`가 같은 AW 
 - macOS debug `.app` 번들 및 서버 sidecar 생성에 성공했다. 화면 제어 도구가 QA 창을 찾지 못해 실제 화면 확인은 gh-25에 남겨두었다. 설치된 에이전트 handshake와 여러 클라이언트의 앱 종료 검증도 gh-25 범위다.
 
 프로덕션 번들은 기존 500 kB 경고 기준을 초과한다. 기능 검증 실패는 아니며 코드 분할은 추후 최적화 대상이다.
+
+## gh-25 추가 검증 진행 상황
+
+아래 검증은 고정된 AW 버전과 box.md 공유 클라이언트를 사용해 통과했다.
+
+- 설치된 `codex-acp`, `claude-agent-acp`, `opencode acp` 각각에 대해 실제 HTTP/WS 경로로 idle 세션을 만들고 `sessionCreated` 이후 준비 상태와 종료 상태를 확인했다. 사용자 prompt는 보내지 않았으며 provider 대화 내용을 수집하지 않았다.
+- AW `workbench-desktop-client` 테스트 23개: 동기 창 종료 hook, 창 토큰 폐기, 임대 반환, 다른 클라이언트의 자격 증명·작업대 유지.
+- AW `owner_after_desktop` 테스트 2개: 데스크톱 창을 폐기한 후에도 실제 ACP의 진행 중인 턴이 계속되고, 다른 owner 클라이언트가 후속 출력과 취소를 처리하며 취소 후 에이전트 프로세스가 정리된다.
+- AW `idle_session_http` 테스트 5개: idle 준비 및 중복 요청, 권한을 포함한 두 턴, 초기화 중 취소·프로세스 정리, 시작 실패, EOF 처리 및 기존 goal 실행 호환성.
+
+설치 에이전트 검증은 개발자의 설치·인증 상태에 의존하므로 일반 CI에서는 실행하지 않는다. 명시적으로 실행하는 방법:
+
+```sh
+BOX_TEST_INSTALLED_ACP=1 pnpm --filter @box/desktop test:integration
+cargo test --manifest-path vendor/agentic-workspace/Cargo.toml -p workbench-desktop-client
+cargo test --manifest-path vendor/agentic-workspace/Cargo.toml -p workbench-host --features test-hooks --test owner_after_desktop
+cargo test --manifest-path vendor/agentic-workspace/Cargo.toml -p workbench-core --features test-hooks --test idle_session_http
+```
+
+설치 에이전트 세션 3개와 HomePage 통합 1개를 함께 실행해 4개 테스트가 통과했다. 테스트 종료 후 해당 ACP 및 시험 HTTP host 프로세스가 남아 있지 않음을 확인했다. 실제 macOS 화면은 `cua.getApp`의 `cgWindowNotFound` 오류로 아직 검증하지 못했다. gh-25와 상위 gh-3은 이 화면 검증이 완료될 때까지 열어둔다.
