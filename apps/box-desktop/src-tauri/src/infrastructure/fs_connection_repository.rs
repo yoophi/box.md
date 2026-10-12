@@ -257,11 +257,50 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "spawned with a disposable directory by the concurrency test"]
+    fn fresh_process_restores_exact_entity_ids_and_memberships() {
+        let dir = tempfile::tempdir().unwrap();
+        let connection = service(dir.path());
+        let first = connection.create("検討 🌱").unwrap().entities[0].id.clone();
+        let second = connection.create("자료").unwrap().entities[1].id.clone();
+        connection.attach(&first, "source").unwrap();
+        connection.attach(&first, "target").unwrap();
+        let expected = connection.attach(&second, "source").unwrap();
+        let bytes = fs::read(dir.path().join("connections.json")).unwrap();
+        drop(connection);
+        // A new OS process reads the actual file; no inherited service or in-memory snapshot.
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "infrastructure::fs_connection_repository::tests::connection_peer_worker",
+                "--ignored",
+            ])
+            .env("BOX_CONNECTION_TEST_ROOT", dir.path())
+            .env(
+                "BOX_CONNECTION_TEST_EXPECTED",
+                serde_json::to_string(&expected).unwrap(),
+            )
+            .status()
+            .unwrap();
+        assert!(status.success());
+        assert_eq!(
+            fs::read(dir.path().join("connections.json")).unwrap(),
+            bytes
+        );
+    }
+
+    #[test]
+    #[ignore = "spawned with a disposable directory by persistence/concurrency tests"]
     fn connection_peer_worker() {
         let root = PathBuf::from(std::env::var_os("BOX_CONNECTION_TEST_ROOT").unwrap());
-        let prefix = std::env::var("BOX_CONNECTION_TEST_PREFIX").unwrap();
         let connection = service(&root);
+        if let Ok(raw) = std::env::var("BOX_CONNECTION_TEST_EXPECTED") {
+            let expected: ConnectionSnapshot = serde_json::from_str(&raw).unwrap();
+            let restored = connection.snapshot().unwrap();
+            restored.validate().unwrap();
+            assert_eq!(restored, expected);
+            return;
+        }
+        let prefix = std::env::var("BOX_CONNECTION_TEST_PREFIX").unwrap();
         for number in 0..12 {
             let created = connection.create(&format!("{prefix}-{number}")).unwrap();
             let id = created.entities.last().unwrap().id.clone();

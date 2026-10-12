@@ -25,11 +25,15 @@ export async function seedWorkspace(
     initialPath?: string | null;
     invalidRoots?: string[];
     contents?: Record<string, string>;
+    persistConnections?: boolean;
   } = {},
 ) {
   await page.addInitScript(
-    ({ count, initialPath, invalidRoots, contents }) => {
+    ({ count, initialPath, invalidRoots, contents, persistConnections }) => {
       const key = "box.md.workspace-path";
+      // Only the test IPC adapter uses browser storage. Production uses the native file repository.
+      const connectionKey = "box.md.browser-fixture.connections";
+      const storedConnections = persistConnections ? localStorage.getItem(connectionKey) : null;
       if (initialPath && !localStorage.getItem(key))
         localStorage.setItem(key, initialPath);
       const state: NativeFixture = {
@@ -40,7 +44,7 @@ export async function seedWorkspace(
         documents: [],
         content: new Map(Object.entries(contents)),
         truncated: false,
-        connections: { version: 1, entities: [], memberships: [] },
+        connections: storedConnections ? JSON.parse(storedConnections) : { version: 1, entities: [], memberships: [] },
         failConnections: false,
       };
       window.__BOX_BROWSER_FIXTURE__ = state;
@@ -87,6 +91,7 @@ export async function seedWorkspace(
               if (!graph.memberships.some((edge) => edge.connectionId === connectionId && edge.permalink === permalink)) graph.memberships.push({ connectionId, permalink });
             }
             if (command === "detach_document_connection") graph.memberships = graph.memberships.filter((edge) => !(edge.connectionId === args.connectionId && edge.permalink === args.permalink));
+            if (persistConnections && command !== "list_connections") localStorage.setItem(connectionKey, JSON.stringify(graph));
             return structuredClone(graph);
           }
           if (command === "list_workspace_documents") {
@@ -154,6 +159,7 @@ export async function seedWorkspace(
         options.initialPath === undefined ? "/fixture" : options.initialPath,
       invalidRoots: options.invalidRoots ?? [],
       contents: options.contents ?? {},
+      persistConnections: options.persistConnections ?? false,
     },
   );
 }
