@@ -1,3 +1,6 @@
+pub mod fs_document_repository;
+pub mod fs_workspace_repository;
+pub mod native_menu;
 use crate::{domain::AppInfo, ports::AppInfoProvider};
 
 pub struct NativeAppInfo;

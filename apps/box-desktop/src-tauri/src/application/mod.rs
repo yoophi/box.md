@@ -1,3 +1,5 @@
+pub mod document_service;
+pub mod workspace_service;
 use crate::{domain::AppInfo, ports::AppInfoProvider};
 
 pub struct AppInfoService {

@@ -17,7 +17,11 @@
     "@box/ui": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "@box/editor": "workspace:*",
+    "@tiptap/react": "3.31.4",
+    "@tiptap/pm": "3.31.4",
+    "@tauri-apps/plugin-dialog": "^2.7.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.0",

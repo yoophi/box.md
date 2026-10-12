@@ -1,3 +1,5 @@
+pub mod document_repository;
+pub mod workspace_repository;
 use crate::domain::AppInfo;
 
 pub trait AppInfoProvider: Send + Sync {

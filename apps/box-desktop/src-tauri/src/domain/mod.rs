@@ -1,3 +1,5 @@
+pub mod document;
+pub mod workspace;
 use serde::Serialize;
 
 #[derive(Serialize)]

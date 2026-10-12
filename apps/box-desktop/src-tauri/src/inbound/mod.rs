@@ -1,3 +1,5 @@
+pub mod document_commands;
+pub mod workspace_commands;
 use crate::{application::AppInfoService, domain::AppInfo};
 
 #[tauri::command]

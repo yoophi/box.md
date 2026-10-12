@@ -47,3 +47,7 @@ flowchart LR
 - `pnpm tauri:build --debug --bundles app`: `target/debug/bundle/macos/box.md.app` 생성.
 - 앱 실행 후 “앱 정보 확인” 버튼 클릭: `box.md · v0.1.0 · macos` 표시, WebView→Rust→WebView 호출 확인.
 - GitHub Actions는 설정만 추가했으며 원격 실행은 수행하지 않았다. 릴리스 서명·공증은 초기 검증 범위에 포함하지 않는다.
+
+## 문서 편집·작업 디렉터리 확장
+
+`gh-2`에서 공용 `packages/editor`, 작업 디렉터리 문서 탐색, native document open/save command와 파일 revision 검사를 추가했다. 현재 상세 구조·수용 범위·검증은 [문서 편집 기록](document-editing-gh-2.md)을 기준으로 확인한다.
