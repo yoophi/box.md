@@ -38,6 +38,8 @@ Mermaid가 일반 문단 대신 기본 블록으로 선택되지 않도록 schem
 
 현재 공용 편집기 28개, desktop 27개, SDK 75개, chat facade 16개와 Chromium 20개가 통과한다. Chromium 중 7개가 Mermaid 통합 검증이며 나머지 13개는 설정/사이드바 회귀 검증이다. NodeView 테스트 3개는 오래된 렌더 결과·삭제된 뷰·개별 실패 격리를 검증한다. 기존 실제 HTTP ACP 통합 검증 1개도 gh-30에서 통과했다.
 
+상위 gh-16 검토에서 `cargo test -p box-desktop`의 native 테스트 15개도 통과했다. 실제 임시 파일을 사용하는 Unicode 저장·재열기, 외부 변경 충돌, Git history 및 원본 보존을 확인한다. 파일 저장 구현은 전달받은 UTF-8 바이트를 쓰며 Markdown 또는 Mermaid를 재해석하지 않는다. Mermaid의 펜스·줄바꿈 보존은 공용 파서와 위 Chromium 저장 payload 검증에서 직접 확인한다. native 테스트 로그는 `/tmp/box-md-gh16-native-tests.log`에 있다.
+
 검증 실행 로그는 `/tmp/box-md-gh31-{types,tests,browser,build,fmt,rust}.log`에 저장했다. 브라우저의 앞선 세부 실행은 `/tmp/box-md-gh31-mermaid.log`에 있다. 전체 요구사항의 영구 근거는 이 문서와 커밋된 테스트이며 임시 로그에만 의존하지 않는다.
 
 참조: [Tiptap JavaScript node views](https://tiptap.dev/docs/editor/extensions/custom-extensions/node-views/javascript), [Mermaid 보안 설정](https://mermaid.js.org/config/schema-docs/config.html#securitylevel).
