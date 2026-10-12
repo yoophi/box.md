@@ -51,7 +51,7 @@ export function HomePage() {
           disabled={busy || !isDesktop()}
           onClick={() => workspace.request("directory")}
         >
-          {folder ? `▱ ${workspaceName(folder.path)}` : "작업 디렉터리 선택"}
+          <span className="workspace-picker-name">{folder ? `▱ ${workspaceName(folder.path)}` : "작업 디렉터리 선택"}</span>
           <span>{folder ? "변경" : "＋"}</span>
         </button>
         <button

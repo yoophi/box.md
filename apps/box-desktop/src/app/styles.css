@@ -5,6 +5,7 @@
   height: 100svh;
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
 .workspace-sidebar {
@@ -13,6 +14,11 @@
   padding: 32px 22px 22px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.workspace-sidebar > :not(.document-list-section) {
+  flex-shrink: 0;
 }
 .wordmark {
   color: #223a34;
@@ -99,6 +105,7 @@ kbd {
 }
 .workspace-main {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -500,13 +507,24 @@ kbd {
   color: #8d957f;
   flex-shrink: 0;
 }
+.workspace-picker .workspace-picker-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #40593f;
+}
 .document-list-section {
   min-height: 0;
   display: flex;
   flex-direction: column;
   flex: 1;
+  overflow: hidden;
 }
 .document-list-heading {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -526,6 +544,8 @@ kbd {
   margin: 12px -8px 0;
   overflow-y: auto;
   min-height: 0;
+  flex: 1;
+  overscroll-behavior: contain;
 }
 .document-list button {
   display: flex;
@@ -569,6 +589,26 @@ kbd {
   line-height: 1.9;
   color: #939d85;
   margin-top: 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (max-height: 640px) {
+  .workspace-sidebar { padding: 18px 16px 14px; }
+  .sidebar-caption { margin: 6px 0 22px; }
+  .workspace-picker { margin: -10px 0 12px; }
+  .sidebar-action { padding-block: 7px; }
+  .document-list-section { margin-top: 12px; padding-top: 10px; }
+  .document-list { margin-top: 8px; }
+  .sidebar-footer { padding-top: 10px; line-height: 1.6; }
+}
+@media (max-height: 520px) {
+  .workspace-sidebar { padding: 14px 16px 10px; }
+  .sidebar-caption { margin-bottom: 12px; }
+  .workspace-picker { padding-block: 6px; }
+  .sidebar-action { padding-block: 4px; }
+  .document-list-section { margin-top: 8px; padding-top: 8px; }
+  .sidebar-footer { padding-top: 6px; }
 }
 
 .history-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }

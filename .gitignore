@@ -10,3 +10,6 @@ target/
 apps/*/src-tauri/gen/
 
 apps/box-desktop/src-tauri/binaries/agentic-workbench-server*
+
+apps/box-desktop/test-results/
+apps/box-desktop/playwright-report/
