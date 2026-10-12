@@ -53,3 +53,5 @@ export function richTextIssue(markdown: string): string | null {
 }
 
 export { parseMarkdownFrontMatter } from "./frontMatter";
+
+export { documentProperty, setDocumentProperty } from "./metadata";

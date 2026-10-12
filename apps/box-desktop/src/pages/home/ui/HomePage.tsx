@@ -1,3 +1,4 @@
+import { DocumentProperties } from "@/features/document-properties";
 import { useEffect, useState } from "react";
 import { DocumentHistory } from "@/features/document-history";
 import { Button } from "@box/ui";
@@ -168,6 +169,7 @@ export function HomePage() {
             <button onClick={workspace.dismissError}>닫기</button>
           </div>
         )}
+        <DocumentProperties content={document.content} disabled={busy} onChange={workspace.restoreVersion} />
         {showHistory && document.path ? <DocumentHistory key={document.path} path={document.path} dirty={dirty} busy={busy} onRestore={workspace.restoreVersion} onClose={() => setShowHistory(false)} /> : <MarkdownEditor
           key={document.key}
           content={document.content}

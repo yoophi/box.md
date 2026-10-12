@@ -583,3 +583,10 @@ kbd {
 .history-actions span { margin-right: auto; color: #77816d; }
 .history-actions button { padding: 8px 12px; border: 1px solid #bcbfab; border-radius: 4px; background: #e5eadc; color: #244f42; }
 .panel-empty { padding: 32px; color: #77816d; font-size: 13px; }
+
+.document-properties { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 32px; border-bottom: 1px solid #e2e3d9; background: #eeeee4; font-size: 11px; }
+.document-properties label { display: flex; align-items: center; gap: 10px; color: #66735e; }
+.document-properties input { min-width: 220px; border: 1px solid #c0cbb3; background: #faf9f2; border-radius: 3px; padding: 7px 10px; font-size: 12px; color: #344a3d; }
+.document-properties button { border: 1px solid #bcbfab; background: #e5eadc; border-radius: 3px; padding: 7px 10px; color: #244f42; }
+.document-properties small { color: #8c9284; }
+.document-properties p { width: 100%; color: #8d4e39; margin: 0; }
