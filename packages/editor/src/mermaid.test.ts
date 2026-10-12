@@ -5,9 +5,18 @@ import {
   editorExtensions,
   markdownToDocument,
   richTextIssue,
+  splitDocument,
 } from "./index";
 
 describe("Mermaid source preservation", () => {
+  it("preserves a standalone BOM before a diagram without YAML", () => {
+    const raw = "```mermaid\r\ngraph TD\r\nA --> B\r\n```";
+    const { prefix, body } = splitDocument("\uFEFF" + raw);
+    expect(prefix).toBe("\uFEFF");
+    const doc = markdownToDocument(body);
+    expect(doc.content![0].type).toBe("mermaidBlock");
+    expect(prefix + documentToMarkdown(doc)).toBe("\uFEFF" + raw);
+  });
   it.each(["```", "~~~~", "````"])(
     "preserves the %s fence and source while surrounding prose changes",
     (fence) => {
@@ -41,6 +50,35 @@ describe("Mermaid source preservation", () => {
     expect(documentToMarkdown(doc)).toContain(
       "> ```mermaid\r\n> graph TD\r\n> A --> B\r\n> ```",
     );
+  });
+  it("does not borrow line endings from a diagram literal inside another code block", () => {
+    const literal =
+      "````txt\r\n```mermaid\r\ngraph TD\r\nA --> B\r\n```\r\n````";
+    const actual = "```mermaid\ngraph TD\nA --> B\n```";
+    const doc = markdownToDocument(`${literal}\n\n${actual}`);
+    expect(
+      doc.content!.find((node) => node.type === "mermaidBlock")!.attrs!.raw,
+    ).toBe(actual);
+    const reopened = markdownToDocument(documentToMarkdown(doc));
+    expect(
+      reopened.content!.filter((node) => node.type === "mermaidBlock"),
+    ).toHaveLength(1);
+    expect(reopened.content![0].content).toEqual(doc.content![0].content);
+  });
+  it("preserves line endings in a quote nested within a list", () => {
+    const doc = markdownToDocument(
+      "- > ```mermaid\r\n  > graph TD\r\n  > A --> B\r\n  > ```",
+    );
+    const output = documentToMarkdown(doc);
+    expect(output).toContain("```mermaid\r\n");
+    expect(output).toContain("A --> B\r\n");
+    getSchema(editorExtensions()).nodeFromJSON(doc).check();
+    const reopened = markdownToDocument(output);
+    const diagrams = (node: typeof doc): string[] =>
+      node.type === "mermaidBlock"
+        ? [String(node.attrs!.source)]
+        : (node.content ?? []).flatMap(diagrams);
+    expect(diagrams(reopened)).toEqual(diagrams(doc));
   });
   it("does not mistake code or diagram labels for unsupported document syntax", () => {
     expect(

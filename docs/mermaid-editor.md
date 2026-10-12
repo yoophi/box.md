@@ -4,11 +4,11 @@ Mermaid fenced code는 공용 `packages/editor`의 `mermaidBlock` leaf atom으�
 
 ## 원문 보존 (gh-29)
 
-Mermaid 노드가 일반 코드 블록보다 먼저 Markdown `code` 토큰을 처리한다. 다른 언어의 코드 블록은 기존 StarterKit으로 처리한다. serializer는 차트의 `raw`를 사용하므로 Mermaid 문법, 공백, Unicode, 백틱/물결 펜스 길이와 언어 표기를 보존한다. Marked가 정규화한 줄바꿈은 입력의 대응하는 원문 행에서 복원한다. 인용문·목록의 컨테이너 접두사는 Markdown serializer가 처리한다.
+Mermaid 노드가 일반 코드 블록보다 먼저 Markdown `code` 토큰을 처리한다. 다른 언어의 코드 블록은 StarterKit CodeBlock을 확장해 처리한다. 코드 내용에 펜스가 있으면 더 긴 펜스를 선택해 뒤의 실제 차트가 일반 코드로 흡수되지 않게 한다. serializer는 차트의 `raw`를 사용하므로 Mermaid 문법, 공백, Unicode, 백틱/물결 펜스 길이와 언어 표기를 보존한다. Marked가 정규화한 줄바꿈은 모든 실제 코드 토큰을 순서대로 추적해 입력의 대응하는 원문 행에서 복원한다. 다른 코드 안의 예시에는 차트 복원을 적용하지 않는다. 인용문·목록의 컨테이너 접두사는 Markdown serializer가 처리한다.
 
 확장 문법 검사는 fenced code와 inline code를 제외하고 수행한다. Mermaid 내부 HTML 형태의 라벨이나 `$` 때문에 문서 전체가 원문 모드로 강제되지 않는다. HTML clipboard 내보내기는 실행 가능한 SVG 대신 이스케이프된 코드 텍스트를 사용한다. 외부 clipboard의 raw 속성은 같은 Mermaid 코드 블록과 원문인지 검증한다.
 
-공용 테스트 22개와 기존 desktop 27개, Chromium 회귀 13개 및 프로젝트 기본 검증이 통과했다. Mermaid 전용 7개 검증에는 여러 블록, Unicode, CRLF/혼합 줄바꿈, 백틱/물결 펜스, 인용문, 주변 본문 수정, 코드 문법 검사 제외, leaf atom schema가 포함된다.
+공용 테스트 25개와 기존 desktop 27개, Chromium 회귀 13개 및 프로젝트 기본 검증이 통과했다. Mermaid 전용 10개 검증에는 여러 블록, Unicode, CRLF/혼합 줄바꿈, 백틱/물결 펜스, 인용문, 주변 본문 수정, 코드 문법 검사 제외, leaf atom schema가 포함된다. 일반 코드 안의 Mermaid 예시를 실제 차트와 구별하며, 인용문과 목록이 결합된 경우 schema와 저장·재열기 원문을 확인했다. BOM만 있는 문서는 BOM을 별도 prefix로 보존한다.
 
 ## 남은 하위 작업
 

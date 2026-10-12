@@ -191,7 +191,7 @@ function RichEditor({ content, disabled, readOnly, onChange }: Props) {
           </button>
         </form>
       )}
-      {prefix && (
+      {prefix.replace(/^\uFEFF/, "").startsWith("---") && (
         <div className="frontmatter-note">
           YAML 속성은 그대로 보존됩니다. 속성 수정은 Markdown 원문에서 할 수
           있습니다.

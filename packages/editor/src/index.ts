@@ -7,14 +7,17 @@ import { TableKit } from "@tiptap/extension-table";
 import { parseMarkdownFrontMatter } from "./frontMatter";
 import { marked } from "marked";
 import { MermaidBlock, restoreMermaidLineEndings } from "./mermaid";
+import { PreservedCodeBlock } from "./codeBlock";
 
 export function editorExtensions() {
   return [
     MermaidBlock,
     StarterKit.configure({
+      codeBlock: false,
       link: { openOnClick: false, protocols: ["boxmd"] },
       underline: false,
     }),
+    PreservedCodeBlock,
     Image,
     TaskList,
     TaskItem.configure({ nested: true }),
@@ -40,7 +43,9 @@ export function splitDocument(markdown: string): {
   );
   return match
     ? { prefix: match[0], body: markdown.slice(match[0].length) }
-    : { prefix: "", body: markdown };
+    : markdown.startsWith("\uFEFF")
+      ? { prefix: "\uFEFF", body: markdown.slice(1) }
+      : { prefix: "", body: markdown };
 }
 
 export function richTextIssue(markdown: string): string | null {

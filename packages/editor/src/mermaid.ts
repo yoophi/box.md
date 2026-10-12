@@ -104,17 +104,28 @@ export function restoreMermaidLineEndings(
     .filter((match) => match[0])
     .map((match) => ({ text: match[1], ending: match[2] }));
   let cursor = 0;
-  function visit(node: JSONContent) {
-    if (node.type === "mermaidBlock" && typeof node.attrs?.raw === "string") {
-      const raw = node.attrs.raw.split("\n");
+  const originals: { normalized: string; original: string }[] = [];
+  type Token = {
+    type: string;
+    lang?: string;
+    raw: string;
+    tokens?: Token[];
+    items?: Token[];
+  };
+  function scan(tokens: Token[]) {
+    for (const token of tokens) {
+      if (token.type !== "code") {
+        scan(token.tokens ?? token.items ?? []);
+        continue;
+      }
+      const raw = token.raw.replace(/\n+$/, "").split("\n");
+      let original = raw.join("\n");
       for (let start = cursor; start <= lines.length - raw.length; start++) {
         const prefix = lines[start].text.slice(
           0,
           lines[start].text.length - raw[0].length,
         );
-        if (
-          !/^[ \t]*(?:>[ \t]*)*(?:(?:[-+*]|\d+[.)])[ \t]+)?[ \t]*$/.test(prefix)
-        )
+        if (!/^(?:[ \t]+|>[ \t]*|(?:[-+*]|\d+[.)])[ \t]+)*$/.test(prefix))
           continue;
         if (
           !raw.every((line: string, index: number) =>
@@ -122,7 +133,7 @@ export function restoreMermaidLineEndings(
           )
         )
           continue;
-        node.attrs.raw = raw
+        original = raw
           .map(
             (line: string, index: number) =>
               line +
@@ -132,8 +143,35 @@ export function restoreMermaidLineEndings(
         cursor = start + raw.length;
         break;
       }
+      if (
+        String(token.lang ?? "")
+          .split(/\s+/)[0]
+          .toLowerCase() === "mermaid"
+      )
+        originals.push({ normalized: raw.join("\n"), original });
+    }
+  }
+  // Advance past every real code token, including ordinary code containing a diagram example.
+  scan(marked.lexer(markdown) as Token[]);
+  function visit(node: JSONContent) {
+    if (node.type === "mermaidBlock" && node.attrs && originals.length) {
+      const normalized = String(node.attrs.raw ?? "").replace(/\r\n?/g, "\n");
+      const index = originals.findIndex(
+        (item) => item.normalized === normalized,
+      );
+      if (index >= 0) node.attrs.raw = originals.splice(index, 1)[0].original;
     }
     node.content?.forEach(visit);
+    if (
+      (node.type === "listItem" || node.type === "taskItem") &&
+      node.content?.[0]?.type !== "paragraph"
+    ) {
+      const containsDiagram = (child: JSONContent): boolean =>
+        child.type === "mermaidBlock" ||
+        Boolean(child.content?.some(containsDiagram));
+      if (node.content?.some(containsDiagram))
+        node.content.unshift({ type: "paragraph", content: [] });
+    }
   }
   visit(document);
   return document;
