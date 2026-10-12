@@ -1,3 +1,5 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "vendor/agentic-workspace/packages/workbench-client"
+  - "vendor/agentic-workspace/packages/workbench-agent-client"

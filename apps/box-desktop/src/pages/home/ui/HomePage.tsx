@@ -1,3 +1,4 @@
+import { AgentChatSheet, useAgentChat } from "@/features/agent-chat";
 import { DocumentCards } from "@/features/document-cards";
 import { DocumentComments } from "@/features/document-comments";
 import { LinkDocument } from "@/features/link-document";
@@ -16,6 +17,8 @@ export function HomePage() {
   const workspace = useDocumentWorkspace();
   const [linkToOpen, setLinkToOpen] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [showChat, setShowChat] = useState(false);
+  const chat = useAgentChat(workspace.workspace?.path, showChat);
   const [showCards, setShowCards] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   useEffect(() => { setShowHistory(false); setShowCards(false); }, [workspace.document.key]);
@@ -66,6 +69,7 @@ export function HomePage() {
           문서 열기 <kbd>⌘O</kbd>
         </button>
         <button className="sidebar-action" disabled={!folder || busy} onClick={() => setShowCards(true)}>문서 카드 보기</button>
+        <button className="sidebar-action" disabled={!folder || !isDesktop()} aria-expanded={showChat} onClick={() => setShowChat(!showChat)}>에이전트 채팅</button>
         <form className="open-document-link" onSubmit={(event) => {
           event.preventDefault();
           try { workspace.request({ type: "permalink", path: permalinkFromLink(linkToOpen) }); setLinkError(null); }
@@ -217,6 +221,7 @@ export function HomePage() {
         </footer>
         </>}
       </section>
+      <AgentChatSheet model={chat} open={showChat} workspace={folder?.path} blocked={Boolean(pending || overwrite)} onHide={() => setShowChat(false)} />
       {pending && !overwrite && (
         <div className="modal-overlay">
           <section

@@ -37,6 +37,9 @@ pub fn run() {
         .manage(ExitGuard(AtomicBool::new(false)))
         .manage(service)
         .setup(|app| {
+            app.manage(infrastructure::workbench_shell::WorkbenchShell::new(
+                &app.path().app_data_dir()?,
+            ));
             app.manage(application::comment_service::CommentService::new(
                 infrastructure::fs_comment_repository::FsCommentRepository::new(
                     app.path().app_data_dir()?.join("comments"),
@@ -55,6 +58,7 @@ pub fn run() {
         ))
         .invoke_handler(tauri::generate_handler![
             set_exit_allowed,
+            inbound::workbench_commands::get_workbench_connection,
             inbound::comment_commands::list_document_comments,
             inbound::comment_commands::add_document_comment,
             inbound::get_app_info,
@@ -65,9 +69,26 @@ pub fn run() {
             inbound::document_commands::history_content,
             inbound::workspace_commands::list_workspace_documents
         ])
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Some(shell) = window
+                    .app_handle()
+                    .try_state::<infrastructure::workbench_shell::WorkbenchShell>()
+                {
+                    shell.retire();
+                }
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building box.md")
         .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                if let Some(shell) =
+                    app.try_state::<infrastructure::workbench_shell::WorkbenchShell>()
+                {
+                    tauri::async_runtime::block_on(shell.shutdown());
+                }
+            }
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 if !app.state::<ExitGuard>().0.load(Ordering::SeqCst) {
                     if let Some(window) = app.get_webview_window("main") {

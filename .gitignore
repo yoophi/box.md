@@ -8,3 +8,5 @@ target/
 !.env.example
 .todos/
 apps/*/src-tauri/gen/
+
+apps/box-desktop/src-tauri/binaries/agentic-workbench-server*

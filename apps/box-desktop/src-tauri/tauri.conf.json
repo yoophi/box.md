@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.yoophi.box-md",
   "build": {
-    "beforeDevCommand": "pnpm run dev",
+    "beforeDevCommand": "pnpm run prepare:server:dev && pnpm run dev",
     "devUrl": "http://localhost:1430",
-    "beforeBuildCommand": "pnpm run build",
+    "beforeBuildCommand": "pnpm run prepare:server && pnpm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:"
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:*; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data:"
     }
   },
   "bundle": {
@@ -36,6 +36,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/agentic-workbench-server"
     ]
   },
   "plugins": {

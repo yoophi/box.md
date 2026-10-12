@@ -3,6 +3,11 @@ import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { cleanup, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HomePage } from "./HomePage";
+import { createChatClient } from "@/entities/agent-chat";
+import { chatFixture, readySession } from "@/features/agent-chat/model/chat-fixture";
+import { act } from "@testing-library/react";
+
+vi.mock("@/entities/agent-chat", () => ({ createChatClient: vi.fn() }));
 
 const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]> }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
@@ -30,6 +35,7 @@ vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ onCloseReq
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: async () => null, save: async () => null }));
 
 beforeEach(() => {
+  vi.mocked(createChatClient).mockImplementation(() => chatFixture().client);
   const stored = new Map<string, string>();
   vi.stubGlobal("localStorage", { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => stored.set(key, value), clear: () => stored.clear(), removeItem: (key: string) => stored.delete(key) });
   localStorage.clear(); localStorage.setItem("box.md.workspace-path", "/workspace");
@@ -38,6 +44,26 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("document workspace flows", () => {
+  it("retains the unsaved document, conversation and message draft while toggling chat", async () => {
+    const fixture = chatFixture(); vi.mocked(createChatClient).mockReturnValue(fixture.client);
+    const original = native.content, user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const source = screen.getByRole("textbox", { name: "Markdown 원문" });
+    fireEvent.change(source, { target: { value: original + "\n미저장 변경" } });
+    await user.click(screen.getByRole("button", { name: "에이전트 채팅" }));
+    await screen.findByRole("option", { name: "Codex" });
+    act(() => fixture.emit({ connection: "connected", disposed: false, sessions: [{ ...readySession(), messages: [{ id: "reply", role: "assistant", text: "문서를 함께 검토해요" }] }] }));
+    await user.type(screen.getByRole("textbox", { name: "채팅 메시지" }), "작성 중인 질문");
+    await user.click(screen.getByRole("button", { name: "채팅 숨기기" }));
+    await user.click(screen.getByRole("button", { name: "에이전트 채팅" }));
+    expect(screen.getByText("문서를 함께 검토해요")).toBeTruthy();
+    expect((screen.getByRole("textbox", { name: "채팅 메시지" }) as HTMLTextAreaElement).value).toBe("작성 중인 질문");
+    expect((source as HTMLTextAreaElement).value).toBe(original + "\n미저장 변경");
+    expect(screen.getByText("저장하지 않은 변경사항")).toBeTruthy();
+    expect(native.content).toBe(original);
+    expect(fixture.client.closeSession).not.toHaveBeenCalled();
+  });
   it("shows original frontmatter summaries on cards and opens their documents", async () => {
     const user = userEvent.setup(); render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: "문서 카드 보기" }));

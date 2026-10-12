@@ -23,5 +23,8 @@ tauri-plugin-deep-link = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 
+uuid = { version = "1", features = ["v4"] }
+workbench-desktop-client = { path = "../../../vendor/agentic-workspace/crates/workbench-desktop-client" }
+
 [features]
 custom-protocol = ["tauri/custom-protocol"]

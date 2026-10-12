@@ -1,0 +1,3 @@
+[submodule "vendor/agentic-workspace"]
+	path = vendor/agentic-workspace
+	url = git@github.com:yoophi/agentic-workspace.git

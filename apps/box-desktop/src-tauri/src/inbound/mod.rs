@@ -8,3 +8,5 @@ pub fn get_app_info(service: tauri::State<'_, AppInfoService>) -> AppInfo {
 }
 
 pub mod comment_commands;
+
+pub mod workbench_commands;
