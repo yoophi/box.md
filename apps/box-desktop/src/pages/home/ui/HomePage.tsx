@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { DocumentHistory } from "@/features/document-history";
 import { Button } from "@box/ui";
 import { documentName } from "@/entities/document";
 import { MarkdownEditor } from "@/features/edit-document";
@@ -7,6 +9,8 @@ import { isDesktop } from "@/shared/lib/runtime";
 
 export function HomePage() {
   const workspace = useDocumentWorkspace();
+  const [showHistory, setShowHistory] = useState(false);
+  useEffect(() => setShowHistory(false), [workspace.document.key]);
   const {
     document,
     dirty,
@@ -132,6 +136,7 @@ export function HomePage() {
             </span>
           </div>
           <div className="file-actions">
+            <button className="plain-button" disabled={busy || !document.path || !isDesktop()} onClick={() => setShowHistory(!showHistory)}>히스토리</button>
             {document.path && (
               <button
                 className="plain-button"
@@ -163,12 +168,12 @@ export function HomePage() {
             <button onClick={workspace.dismissError}>닫기</button>
           </div>
         )}
-        <MarkdownEditor
+        {showHistory && document.path ? <DocumentHistory key={document.path} path={document.path} dirty={dirty} busy={busy} onRestore={workspace.restoreVersion} onClose={() => setShowHistory(false)} /> : <MarkdownEditor
           key={document.key}
           content={document.content}
           onChange={workspace.change}
           disabled={busy}
-        />
+        />}
         <footer className="document-status" role="status">
           <span>{dirty ? "저장하지 않은 변경사항" : notice}</span>
           <span>

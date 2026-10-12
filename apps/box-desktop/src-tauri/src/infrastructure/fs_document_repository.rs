@@ -64,6 +64,7 @@ impl DocumentRepository for FsDocumentRepository {
             path: path.to_string_lossy().into(),
             content,
             revision: rev,
+            history_warning: None,
         })
     }
     fn revision(&self, path: &str) -> Result<Option<String>, DocumentError> {
@@ -116,6 +117,7 @@ impl DocumentRepository for FsDocumentRepository {
             path: path.to_string_lossy().into(),
             content: content.into(),
             revision: hash(content.as_bytes()),
+            history_warning: None,
         })
     }
 }

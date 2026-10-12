@@ -8,6 +8,7 @@ export interface DocumentSnapshot {
   path: string;
   content: string;
   revision: string;
+  historyWarning?: string | null;
 }
 export interface DocumentError {
   code: string;
@@ -24,3 +25,5 @@ export interface WorkspaceSnapshot {
   documents: WorkspaceDocument[];
   truncated: boolean;
 }
+
+export interface HistoryEntry { id: string; savedAt: string; }

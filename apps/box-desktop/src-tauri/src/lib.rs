@@ -28,9 +28,15 @@ pub fn run() {
         })
         .manage(ExitGuard(AtomicBool::new(false)))
         .manage(service)
-        .manage(application::document_service::DocumentService::new(
-            infrastructure::fs_document_repository::FsDocumentRepository,
-        ))
+        .setup(|app| {
+            app.manage(application::document_service::DocumentService::new(
+                infrastructure::fs_document_repository::FsDocumentRepository,
+                infrastructure::git_document_history::GitDocumentHistory::new(
+                    app.path().app_data_dir()?.join("history"),
+                ),
+            ));
+            Ok(())
+        })
         .manage(application::workspace_service::WorkspaceService::new(
             infrastructure::fs_workspace_repository::FsWorkspaceRepository,
         ))
@@ -40,6 +46,8 @@ pub fn run() {
             inbound::document_commands::open_document,
             inbound::document_commands::save_document,
             inbound::document_commands::document_revision,
+            inbound::document_commands::document_history,
+            inbound::document_commands::history_content,
             inbound::workspace_commands::list_workspace_documents
         ])
         .build(tauri::generate_context!())

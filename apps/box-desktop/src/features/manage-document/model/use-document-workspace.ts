@@ -104,7 +104,8 @@ export function useDocumentWorkspace() {
       baseline: saved.content,
       revision: saved.revision,
     }));
-    setNotice("파일에 저장했습니다.");
+    setNotice(saved.historyWarning ? "파일을 저장했지만 히스토리를 기록하지 못했습니다." : "파일과 Git 히스토리에 저장했습니다.");
+    if (saved.historyWarning) setError(`히스토리 저장 실패: ${saved.historyWarning}`);
     await refreshWorkspace();
     return true;
   }
@@ -376,6 +377,7 @@ export function useDocumentWorkspace() {
 
   return {
     document,
+    restoreVersion: (content: string) => setDocument((current) => ({ ...current, content, key: ++nextDocumentKey })),
     workspace,
     refreshing,
     refreshWorkspace,

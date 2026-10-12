@@ -14,3 +14,5 @@ impl AppInfoProvider for NativeAppInfo {
         }
     }
 }
+
+pub mod git_document_history;

@@ -6,6 +6,7 @@ pub struct DocumentSnapshot {
     pub path: String,
     pub content: String,
     pub revision: String,
+    pub history_warning: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

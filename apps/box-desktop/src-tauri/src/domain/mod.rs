@@ -8,3 +8,5 @@ pub struct AppInfo {
     pub version: String,
     pub platform: String,
 }
+
+pub mod history;

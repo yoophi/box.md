@@ -26,3 +26,19 @@ pub fn save_document(
 ) -> Result<DocumentSnapshot, DocumentError> {
     service.save(&path, &content, expected_revision.as_deref())
 }
+
+#[tauri::command]
+pub fn document_history(
+    path: String,
+    service: tauri::State<'_, DocumentService>,
+) -> Result<Vec<crate::domain::history::HistoryEntry>, DocumentError> {
+    service.history(&path)
+}
+#[tauri::command]
+pub fn history_content(
+    path: String,
+    id: String,
+    service: tauri::State<'_, DocumentService>,
+) -> Result<String, DocumentError> {
+    service.history_content(&path, &id)
+}
