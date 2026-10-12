@@ -1,14 +1,46 @@
 import type { Page } from "@playwright/test";
+interface NativeFixture {
+  pickedFolder: string | null;
+  invalidRoots: string[];
+  failPreferences: boolean;
+  writes: { path: string; content: string }[];
+}
+declare global {
+  interface Window {
+    __BOX_BROWSER_FIXTURE__: NativeFixture;
+  }
+}
 
-/** Replaces only native IPC for browser layout checks; the application and editor are real. */
-export async function seedWorkspace(page: Page, count: number) {
+/** Native test adapter only. App rendering, preference storage and editor are real. */
+export async function seedWorkspace(
+  page: Page,
+  count: number,
+  options: { initialPath?: string | null; invalidRoots?: string[] } = {},
+) {
   await page.addInitScript(
-    ({ count }) => {
-      localStorage.setItem("box.md.workspace-path", "/fixture");
+    ({ count, initialPath, invalidRoots }) => {
+      const key = "box.md.workspace-path";
+      if (initialPath && !localStorage.getItem(key))
+        localStorage.setItem(key, initialPath);
+      const state: NativeFixture = {
+        pickedFolder: null,
+        invalidRoots,
+        failPreferences: false,
+        writes: [],
+      };
+      window.__BOX_BROWSER_FIXTURE__ = state;
+      const setItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (name, value) {
+        if (name === key && state.failPreferences)
+          throw new DOMException("fixture quota", "QuotaExceededError");
+        setItem.call(this, name, value);
+      };
       const documents = Array.from({ length: count }, (_, index) => {
         const name = `note-${String(index + 1).padStart(3, "0")}.md`;
         return { name, relativePath: name, path: `/fixture/${name}` };
       });
+      const content = new Map<string, string>(),
+        revisions = new Map<string, number>();
       let callbackId = 0;
       const callbacks = new Map<number, unknown>();
       const bridge = {
@@ -24,15 +56,47 @@ export async function seedWorkspace(page: Page, count: number) {
           callbacks.delete(id);
         },
         async invoke(command: string, args: Record<string, unknown> = {}) {
-          if (command === "list_workspace_documents")
-            return { path: "/fixture", documents, truncated: false };
+          const path = String(args.path ?? "");
+          if (command === "list_workspace_documents") {
+            if (state.invalidRoots.includes(path))
+              throw new Error("작업 디렉터리에 접근할 수 없습니다.");
+            return {
+              path,
+              documents:
+                path === "/fixture"
+                  ? documents
+                  : [
+                      {
+                        name: "other.md",
+                        relativePath: "other.md",
+                        path: `${path}/other.md`,
+                      },
+                    ],
+              truncated: false,
+            };
+          }
           if (command === "open_document")
             return {
-              path: args.path,
-              content: `# ${String(args.path).split("/").pop()}\n\n브라우저 레이아웃 검증 문서`,
-              revision: "1",
+              path,
+              content:
+                content.get(path) ??
+                `# ${path.split("/").pop()}\n\n브라우저 검증 문서`,
+              revision: String(revisions.get(path) ?? 1),
             };
-          if (command === "document_revision") return "1";
+          if (command === "save_document") {
+            const revision = (revisions.get(path) ?? 1) + 1;
+            content.set(path, String(args.content));
+            revisions.set(path, revision);
+            state.writes.push({ path, content: String(args.content) });
+            return {
+              path,
+              content: String(args.content),
+              revision: String(revision),
+            };
+          }
+          if (command === "document_revision")
+            return String(revisions.get(path) ?? 1);
+          if (command === "plugin:dialog|open") return state.pickedFolder;
           if (
             command === "set_exit_allowed" ||
             command === "plugin:event|unlisten"
@@ -51,6 +115,11 @@ export async function seedWorkspace(page: Page, count: number) {
         value: { unregisterListener() {} },
       });
     },
-    { count },
+    {
+      count,
+      initialPath:
+        options.initialPath === undefined ? "/fixture" : options.initialPath,
+      invalidRoots: options.invalidRoots ?? [],
+    },
   );
 }

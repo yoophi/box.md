@@ -16,7 +16,12 @@
 ## 하위 작업과 검증
 
 - gh-26: 설정 UI와 저장 흐름. desktop 27개 단위/React 흐름 테스트, 기존 실제 HTTP ACP 통합, 사이드바 Chromium 5개 회귀 검증 및 프로젝트 기본 검사 통과.
-- gh-27: 설정 UI의 실제 Chromium 조작·reload 복원·미저장 보호·오류·작은 창 검증과 화면 증거를 추가한다. 이 검증이 완료될 때까지 상위 gh-14는 완료 처리하지 않는다.
+- gh-27: 실제 Chromium 설정 검증 8개와 사이드바 회귀 5개, 총 13개 통과. 명시적 저장과 reload 복원, 선택/설정 취소, 미저장 save/discard/cancel, 접근 불가 복구, 접근/저장 오류 시 기존 문서·설정 유지, 최초 설정 및 760×480 창 조작을 확인했다. 작은 창에서 제목이 가려지지 않도록 여백을 조정했다.
+- gh-28: 실제 Tauri 종료·재실행 후 저장 경로와 목록 복원 및 네이티브 폴더 선택기 복구 검증이 남아 있다. `cua.getApp`이 `cgWindowNotFound`를 반환해 이 단계는 아직 확인하지 못했다. 상위 gh-14를 완료 처리하지 않는다.
+
+![저장 경로 복원 후 설정 화면](assets/workspace-settings-restored.png)
+
+![760×480 창의 설정 화면](assets/workspace-settings-small.png)
 
 ```sh
 pnpm check-types

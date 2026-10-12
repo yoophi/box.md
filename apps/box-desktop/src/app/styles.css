@@ -721,3 +721,10 @@ kbd {
 .settings-picker { margin-top: 10px; padding: 8px 14px; border: 1px solid #c0cbb3; border-radius: 4px; background: #eae8de; color: #40593f; font-size: 12px; }
 .settings-hint { margin: 16px 0 22px; font-size: 11px; line-height: 1.7; color: #767c6f; }
 .settings-warning { background: #f0e8dc; padding: 10px 14px; font-size: 12px; line-height: 1.6; color: #8d4e39; margin: 14px 0; }
+@media (max-height: 520px) {
+  .settings-dialog { padding: 18px 22px; }
+  .settings-dialog h2 { font-size: 26px; }
+  .settings-intro { margin: 12px 0 16px; }
+  .settings-saved { padding: 10px 12px; margin-bottom: 14px; }
+  .settings-hint { margin: 12px 0 16px; }
+}
