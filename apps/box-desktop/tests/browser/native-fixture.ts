@@ -1,9 +1,13 @@
 import type { Page } from "@playwright/test";
+import type { WorkspaceDocument } from "@box/contracts";
 interface NativeFixture {
   pickedFolder: string | null;
   invalidRoots: string[];
   failPreferences: boolean;
   writes: { path: string; content: string }[];
+  documents: WorkspaceDocument[];
+  content: Map<string, string>;
+  truncated: boolean;
 }
 declare global {
   interface Window {
@@ -31,6 +35,9 @@ export async function seedWorkspace(
         invalidRoots,
         failPreferences: false,
         writes: [],
+        documents: [],
+        content: new Map(Object.entries(contents)),
+        truncated: false,
       };
       window.__BOX_BROWSER_FIXTURE__ = state;
       const setItem = Storage.prototype.setItem;
@@ -43,7 +50,8 @@ export async function seedWorkspace(
         const name = `note-${String(index + 1).padStart(3, "0")}.md`;
         return { name, relativePath: name, path: `/fixture/${name}` };
       });
-      const content = new Map<string, string>(Object.entries(contents)),
+      state.documents = documents;
+      const content = state.content,
         revisions = new Map<string, number>();
       let callbackId = 0;
       const callbacks = new Map<number, unknown>();
@@ -68,7 +76,7 @@ export async function seedWorkspace(
               path,
               documents:
                 path === "/fixture"
-                  ? documents
+                  ? state.documents
                   : [
                       {
                         name: "other.md",
@@ -76,7 +84,7 @@ export async function seedWorkspace(
                         path: `${path}/other.md`,
                       },
                     ],
-              truncated: false,
+              truncated: path === "/fixture" && state.truncated,
             };
           }
           if (command === "open_document")
@@ -100,6 +108,7 @@ export async function seedWorkspace(
           }
           if (command === "document_revision")
             return String(revisions.get(path) ?? 1);
+          if (command === "list_document_comments") return [];
           if (command === "plugin:dialog|open") return state.pickedFolder;
           if (
             command === "set_exit_allowed" ||
