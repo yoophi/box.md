@@ -22,10 +22,22 @@ Mermaid가 일반 문단 대신 기본 블록으로 선택되지 않도록 schem
 
 ![실제 Chromium Mermaid 차트 화면](assets/mermaid-render.png)
 
-## 남은 하위 작업
+## 통합 검증 (gh-31)
 
-- gh-31: 실제 브라우저 차트 렌더링, 읽기·서식·원문 전환, 수정 후 재렌더, 주변 편집·저장·재열기 원문 보존 및 안전성 검증.
+`apps/box-desktop/tests/browser/mermaid-render.spec.ts`의 Chromium 7개 검증은 실제 React 화면과 Tiptap 편집기, Mermaid SVG 렌더러를 사용한다. 폴더/문서 읽기·쓰기 IPC만 메모리 기반 native adapter로 대체한다. 저장 버튼이 전송한 내용을 확인한 뒤 다른 문서를 열었다가 원래 문서를 다시 열어 저장된 내용과 차트를 확인한다. macOS 창이나 실제 파일 쓰기 검증을 이 브라우저 검증으로 대신했다고 주장하지 않는다.
 
-상위 gh-16은 렌더링과 통합 검증이 끝날 때까지 완료 처리하지 않는다.
+| gh-16 수용 기준 | 확인 근거 |
+| --- | --- |
+| 1. 보기·서식 모드 및 여러 차트 | 두 모드에서 flowchart/sequenceDiagram의 SVG와 각 블록 상태를 확인한다. 유효한 두 차트와 잘못된 차트가 함께 있는 문서도 확인한다. |
+| 2. 차트 비편집·주변 본문 편집 | figure의 `contenteditable=false`, 읽기 모드의 본문 `contenteditable=false` 및 원문 textarea의 readonly를 확인한다. 서식 모드에서 실제 키 입력으로 주변 본문을 수정한다. 공용 schema 검증은 차트가 자식 텍스트 없는 leaf atom임을 확인한다. |
+| 3. 원문 수정 후 갱신 | 원문에서 라벨을 바꾸고 서식 모드에서 갱신된 SVG를 확인한다. 오류 차트를 유효한 DSL로 고친 뒤 서식·읽기 모드에서 새 SVG를 확인한다. |
+| 4. 전환·주변 수정·저장·재열기 보존 | BOM과 기존 frontmatter, CRLF/혼합 줄바꿈, 긴 백틱/물결 펜스, 목록 안 인용 차트를 검증한다. 저장 payload의 차트 원문과 펜스를 확인하고 다시 연 문서의 원문을 저장 payload와 비교한다. 기존 permalink를 가진 frontmatter는 그대로 유지한다. 새 문서는 기존 규칙대로 permalink를 추가한다. 목록 마커 배치는 serializer가 정규화하며 코드 행과 펜스의 내용·줄바꿈은 유지한다. |
+| 5. 블록 오류 및 원문 복구 | 잘못된 블록만 오류를 표시하고 다른 차트와 마지막 본문이 유지된다. 원문 수정 후 오류가 사라지고 새 차트가 읽기 모드에서도 표시된다. 측정용 임시 DOM이 남지 않는다. |
+| 6. 안전한 렌더링 | 보안을 낮추려는 init 지시문, HTML 이벤트 라벨, JavaScript 링크를 입력한다. 실행 가능한 태그·이벤트 속성·외부 href, script 실행, 외부 요청이 없음을 확인한다. 렌더러는 strict 설정을 보호하고 DOMPurify로 SVG를 정제하며 callback을 바인딩하지 않는다. |
+| 7. 검증과 기본 검사 | `pnpm check-types`, `pnpm test`, `pnpm --filter @box/desktop test:browser`, `pnpm build`, `cargo fmt --all -- --check`, `cargo check --workspace --all-targets`를 실행한다. |
+
+현재 공용 편집기 28개, desktop 27개, SDK 75개, chat facade 16개와 Chromium 20개가 통과한다. Chromium 중 7개가 Mermaid 통합 검증이며 나머지 13개는 설정/사이드바 회귀 검증이다. NodeView 테스트 3개는 오래된 렌더 결과·삭제된 뷰·개별 실패 격리를 검증한다. 기존 실제 HTTP ACP 통합 검증 1개도 gh-30에서 통과했다.
+
+검증 실행 로그는 `/tmp/box-md-gh31-{types,tests,browser,build,fmt,rust}.log`에 저장했다. 브라우저의 앞선 세부 실행은 `/tmp/box-md-gh31-mermaid.log`에 있다. 전체 요구사항의 영구 근거는 이 문서와 커밋된 테스트이며 임시 로그에만 의존하지 않는다.
 
 참조: [Tiptap JavaScript node views](https://tiptap.dev/docs/editor/extensions/custom-extensions/node-views/javascript), [Mermaid 보안 설정](https://mermaid.js.org/config/schema-docs/config.html#securitylevel).
