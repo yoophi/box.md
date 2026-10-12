@@ -8,6 +8,7 @@
 - 문서는 `docs/`에 영문 파일명·한국어 내용으로 작성한다. 다이어그램은 Mermaid만 사용한다.
 - 기본 검증: `pnpm check-types`, `pnpm build`, `cargo fmt --all -- --check`, `cargo check --workspace --all-targets`.
 - 잠금 파일 `pnpm-lock.yaml`, `Cargo.lock`을 함께 관리한다.
+- Rust 앱 명령을 추가할 때 `invoke_handler`, `src-tauri/build.rs`의 `AppManifest::commands`, main capability의 허용 permission을 함께 등록한다. 외부 사이트 child WebView에 앱 명령 권한을 부여하지 않는다.
 
 <!-- td-agent-instructions:start -->
 <!-- td-agent-instructions:version=3 -->

@@ -20,4 +20,5 @@ pub mod git_document_history;
 pub mod fs_comment_repository;
 
 pub mod fs_connection_repository;
+pub mod native_site_browser;
 pub mod workbench_shell;

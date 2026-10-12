@@ -13,3 +13,4 @@ pub mod history;
 
 pub mod comment;
 pub mod connection;
+pub mod site_browser;

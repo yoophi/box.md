@@ -37,3 +37,22 @@ export interface ConnectionSnapshot {
   entities: ConnectionEntity[];
   memberships: ConnectionMembership[];
 }
+
+export interface SiteBrowserBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  viewportWidth: number;
+  viewportHeight: number;
+}
+export type SiteBrowserAction = "back" | "forward" | "reload";
+export interface SiteBrowserSnapshot {
+  open: boolean;
+  visible: boolean;
+  url: string | null;
+  title: string;
+  loading: boolean;
+  canGoBack: boolean | null;
+  canGoForward: boolean | null;
+}

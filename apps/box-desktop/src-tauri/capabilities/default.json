@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Main desktop window core permissions",
-  "windows": [
+  "webviews": [
     "main"
   ],
   "permissions": [
@@ -12,6 +12,25 @@
     "core:window:allow-close",
     "core:window:allow-destroy",
     "deep-link:default",
-    "clipboard-manager:allow-write-text"
+    "clipboard-manager:allow-write-text",
+    "allow-set-exit-allowed",
+    "allow-get-app-info",
+    "allow-get-workbench-connection",
+    "allow-open-document",
+    "allow-save-document",
+    "allow-document-revision",
+    "allow-document-history",
+    "allow-history-content",
+    "allow-list-workspace-documents",
+    "allow-list-document-comments",
+    "allow-add-document-comment",
+    "allow-list-connections",
+    "allow-create-connection-entity",
+    "allow-attach-document-connection",
+    "allow-detach-document-connection",
+    "allow-site-browser-open",
+    "allow-site-browser-layout",
+    "allow-site-browser-action",
+    "allow-site-browser-snapshot"
   ]
 }

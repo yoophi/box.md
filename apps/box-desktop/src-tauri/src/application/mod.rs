@@ -20,3 +20,4 @@ impl AppInfoService {
 
 pub mod comment_service;
 pub mod connection_service;
+pub mod site_browser_service;

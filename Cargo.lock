@@ -440,6 +440,7 @@ dependencies = [
 name = "box-desktop"
 version = "0.1.0"
 dependencies = [
+ "objc2-web-kit",
  "serde",
  "serde_json",
  "sha2",
@@ -450,6 +451,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-single-instance",
  "tempfile",
+ "url",
  "uuid",
  "walkdir",
  "workbench-desktop-client",
