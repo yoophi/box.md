@@ -209,6 +209,7 @@ export function HomePage() {
         {showHistory && document.path ? <DocumentHistory key={document.path} path={document.path} dirty={dirty} busy={busy || reading} onRestore={workspace.restoreVersion} onClose={() => setShowHistory(false)} /> : <MarkdownEditor
           key={document.key}
           content={document.content}
+          workspace={folder}
           onChange={workspace.change}
           disabled={busy}
           readOnly={reading}

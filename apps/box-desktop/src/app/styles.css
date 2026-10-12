@@ -243,6 +243,24 @@ kbd {
   line-height: 1.9;
   overflow-wrap: anywhere;
 }
+.document-prose a.wikilink {
+  color: #223a34;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.document-prose a.wikilink[aria-disabled="true"] {
+  color: #747970;
+  cursor: default;
+}
+.wikilink-state {
+  margin-left: 0.35em;
+  padding: 0.08em 0.4em;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.7em;
+  text-decoration: none;
+}
 .document-prose p {
   margin: 12px 0;
 }

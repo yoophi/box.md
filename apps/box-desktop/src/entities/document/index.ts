@@ -24,4 +24,4 @@ export function errorMessage(error: unknown): string {
   return String(error);
 }
 
-export { documentLink, permalinkFromLink, withDocumentPermalink, resolvePermalink } from "./permalink";
+export { documentLink, permalinkFromLink, withDocumentPermalink, resolvePermalink, resolveWikilinkTargets } from "./permalink";

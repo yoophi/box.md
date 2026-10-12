@@ -86,3 +86,4 @@ export { parseMarkdownFrontMatter } from "./frontMatter";
 export { documentProperty, setDocumentProperty } from "./metadata";
 export { MermaidBlock } from "./mermaid";
 export { Wikilink } from "./wikilink";
+export { setWikilinkTargets, type WikilinkTarget, type WikilinkTargets } from "./wikilinkView";

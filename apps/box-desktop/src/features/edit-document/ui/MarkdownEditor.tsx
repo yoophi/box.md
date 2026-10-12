@@ -5,13 +5,18 @@ import {
   markdownToDocument,
   splitDocument,
   richTextIssue,
+  setWikilinkTargets,
+  type WikilinkTargets,
 } from "@box/editor";
 import type { Editor } from "@tiptap/react";
+import type { WorkspaceSnapshot } from "@box/contracts";
+import { useWikilinkTargets } from "../model/use-wikilink-targets";
 
 interface Props {
   content: string;
   disabled: boolean;
   readOnly?: boolean;
+  workspace?: WorkspaceSnapshot | null;
   onChange: (content: string) => void;
 }
 
@@ -40,7 +45,7 @@ function Tool({
   );
 }
 
-function RichEditor({ content, disabled, readOnly, onChange }: Props) {
+function RichEditor({ content, disabled, readOnly, onChange, targets }: Props & { targets: WikilinkTargets }) {
   const { prefix, body } = splitDocument(content);
   const [link, setLink] = useState<string | null>(null);
   const editor = useEditor({
@@ -59,6 +64,7 @@ function RichEditor({ content, disabled, readOnly, onChange }: Props) {
   useEffect(() => {
     editor?.setEditable(!disabled && !readOnly, false);
   }, [disabled, readOnly, editor]);
+  useEffect(() => { if (editor) setWikilinkTargets(editor, targets); }, [editor, targets]);
   const format = useEditorState({
     editor,
     selector: ({ editor }) => ({
@@ -203,6 +209,7 @@ function RichEditor({ content, disabled, readOnly, onChange }: Props) {
 }
 
 export function MarkdownEditor(props: Props) {
+  const targets = useWikilinkTargets(props.workspace ?? null, props.content);
   const issue = richTextIssue(props.content);
   const [mode, setMode] = useState<"rich" | "source">(
     issue ? "source" : "rich",
@@ -248,7 +255,7 @@ export function MarkdownEditor(props: Props) {
           placeholder="# 새로운 생각"
         />
       ) : (
-        <RichEditor {...props} />
+        <RichEditor {...props} targets={targets} />
       )}
     </section>
   );

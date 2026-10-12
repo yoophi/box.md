@@ -1,4 +1,5 @@
 import { Node } from "@tiptap/core";
+import { createWikilinkView, type WikilinkStorage } from "./wikilinkView";
 
 const pattern = /^\[\[([^\[\]\r\n]+)\]\]/;
 
@@ -24,11 +25,17 @@ function original(attrs: Record<string, unknown>) {
 }
 
 /** Display names never become editable content or replace the stored permalink. */
-export const Wikilink = Node.create({
+export const Wikilink = Node.create<Record<string, never>, WikilinkStorage>({
   name: "wikilink",
   group: "inline",
   inline: true,
   atom: true,
+  addStorage() {
+    return { targets: new Map(), views: new Set() };
+  },
+  addNodeView() {
+    return ({ node }) => createWikilinkView(node, this.storage);
+  },
   addAttributes() {
     return {
       permalink: { default: "", rendered: false },
