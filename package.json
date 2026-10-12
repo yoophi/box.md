@@ -1,0 +1,23 @@
+{
+  "name": "box-md",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.5",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=@box/desktop",
+    "build": "turbo run build",
+    "check-types": "turbo run check-types",
+    "check:rust": "cargo check --workspace --all-targets",
+    "fmt:rust": "cargo fmt --all -- --check",
+    "tauri": "pnpm --filter @box/desktop tauri",
+    "tauri:dev": "pnpm --filter @box/desktop tauri:dev",
+    "tauri:build": "pnpm --filter @box/desktop tauri:build"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.8"
+  }
+}

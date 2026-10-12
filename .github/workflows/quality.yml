@@ -1,0 +1,22 @@
+name: Quality
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: corepack enable
+      - uses: dtolnay/rust-toolchain@stable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check-types
+      - run: pnpm build
+      - run: cargo fmt --all -- --check
+      - run: cargo check --workspace --all-targets --locked
