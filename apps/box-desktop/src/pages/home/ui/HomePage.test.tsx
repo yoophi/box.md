@@ -1,3 +1,4 @@
+import { installPanelLayoutFixture } from "@/shared/testing/panel-layout-fixture";
 import { documentProperty } from "@box/editor";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { cleanup, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
@@ -40,7 +41,9 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ onCloseRequested: async () => () => {}, close: async () => {} }) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: async (options: { directory?: boolean }) => options.directory ? native.folder : null, save: async () => null }));
 
+let restorePanelLayout: () => void;
 beforeEach(() => {
+  restorePanelLayout = installPanelLayoutFixture(window);
   vi.mocked(createChatClient).mockImplementation(() => chatFixture().client);
   const stored = new Map<string, string>();
   vi.stubGlobal("localStorage", { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => stored.set(key, value), clear: () => stored.clear(), removeItem: (key: string) => stored.delete(key) });
@@ -49,7 +52,7 @@ beforeEach(() => {
   native.revision = 1; native.versions = []; native.path = "/workspace/note.md"; native.urls = null; native.targetContent = null; native.comments = {};
   native.folder = null; native.brokenRoots = [];
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); restorePanelLayout(); vi.restoreAllMocks(); });
 describe("document workspace flows", () => {
   it.each(["cancel", "discard", "save"] as const)("protects unsaved edits when applying a settings directory: %s", async (choice) => {
     const original = native.content, draft = original + "\n작업 디렉터리 변경 전 초안";
@@ -152,8 +155,11 @@ describe("document workspace flows", () => {
     await screen.findByRole("option", { name: "Codex" });
     act(() => fixture.emit({ connection: "connected", disposed: false, sessions: [{ ...readySession(), messages: [{ id: "reply", role: "assistant", text: "문서를 함께 검토해요" }] }] }));
     await user.type(screen.getByRole("textbox", { name: "채팅 메시지" }), "작성 중인 질문");
+    const draftNode = screen.getByRole("textbox", { name: "채팅 메시지" }) as HTMLTextAreaElement;
+    expect(draftNode.value).toBe("작성 중인 질문");
     await user.click(screen.getByRole("button", { name: "채팅 숨기기" }));
     await user.click(screen.getByRole("button", { name: "에이전트 채팅" }));
+    expect(screen.getByRole("textbox", { name: "채팅 메시지" })).toBe(draftNode);
     expect(screen.getByText("문서를 함께 검토해요")).toBeTruthy();
     expect((screen.getByRole("textbox", { name: "채팅 메시지" }) as HTMLTextAreaElement).value).toBe("작성 중인 질문");
     expect((source as HTMLTextAreaElement).value).toBe(original + "\n미저장 변경");

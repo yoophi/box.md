@@ -1,22 +1,19 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { SiteBrowserBounds } from "@box/contracts";
 import { isDesktop } from "@/shared/lib/runtime";
 import type { BrowserViewState, SiteBrowserController } from "../model/site-browser-controller";
 
-export function siteBounds(rect: Pick<DOMRect, "left" | "top" | "right" | "bottom">, width: number, height: number, occlusion?: DOMRect | null): SiteBrowserBounds | null {
+export function siteBounds(rect: Pick<DOMRect, "left" | "top" | "right" | "bottom">, width: number, height: number): SiteBrowserBounds | null {
   const x = Math.max(0, rect.left), y = Math.max(0, rect.top);
-  let right = Math.min(width, rect.right), bottom = Math.min(height, rect.bottom);
-  if (occlusion && occlusion.top < bottom && occlusion.bottom > y && occlusion.right > x) right = Math.min(right, occlusion.left - 12);
+  const right = Math.min(width, rect.right), bottom = Math.min(height, rect.bottom);
   if (right - x < 120 || bottom - y < 80) return null;
   return { x, y, width: right - x, height: bottom - y, viewportWidth: width, viewportHeight: height };
 }
-export function SiteBrowser({ controller, state, visible, blocked, chatVisible, occlusion, onClose }: {
+export function SiteBrowser({ controller, state, visible, blocked, onClose }: {
   controller: SiteBrowserController;
   state: BrowserViewState;
   visible: boolean;
   blocked: boolean;
-  chatVisible: boolean;
-  occlusion: DOMRect | null;
   onClose(): void;
 }) {
   const region = useRef<HTMLDivElement>(null);
@@ -42,8 +39,8 @@ export function SiteBrowser({ controller, state, visible, blocked, chatVisible, 
   useLayoutEffect(() => {
     if (!isDesktop()) return;
     const measure = () => {
-      const bounds = visible && !blocked && (!chatVisible || occlusion) && region.current
-        ? siteBounds(region.current.getBoundingClientRect(), window.innerWidth, window.innerHeight, occlusion) : null;
+      const bounds = visible && !blocked && region.current
+        ? siteBounds(region.current.getBoundingClientRect(), window.innerWidth, window.innerHeight) : null;
       setSpace(Boolean(bounds)); controller.setLayout(bounds, visible && !blocked && !bounds);
     };
     measure();
@@ -51,12 +48,11 @@ export function SiteBrowser({ controller, state, visible, blocked, chatVisible, 
     if (region.current) resize?.observe(region.current);
     window.addEventListener("resize", measure);
     return () => { resize?.disconnect(); window.removeEventListener("resize", measure); };
-  }, [controller, visible, blocked, chatVisible, occlusion]);
+  }, [controller, visible, blocked]);
   const disabled = blocked || !state.ready || state.busy || !isDesktop() || !space;
-  const inset = occlusion ? Math.max(0, window.innerWidth - occlusion.left + 12) : 0;
   const act = (action: "back" | "forward" | "reload") => { editing.current = false; addressDirty.current = false; controller.act(action); };
   return <section className="workspace-main site-browser-panel" hidden={!visible} aria-label="사이트 브라우저 화면">
-    <header className="site-browser-heading" style={{ "--site-right-inset": `${inset}px` } as CSSProperties}>
+    <header className="site-browser-heading">
       <div className="site-browser-title"><span className="file-label">BROWSE · 사이트</span><h1 title={state.page.title}>{state.page.title || "사이트 브라우저"}</h1></div>
       <button className="plain-button" type="button" onClick={onClose}>문서로 돌아가기</button>
       <form className="site-browser-toolbar" onSubmit={(event) => {

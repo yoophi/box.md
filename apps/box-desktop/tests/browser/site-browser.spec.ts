@@ -13,6 +13,7 @@ async function visit(page: Page, address: string) {
 
 test("normalizes addresses, follows engine history and fits native bounds below the toolbar", async ({ page }, testInfo) => {
   await seedWorkspace(page, 1); await page.goto("/"); await openBrowser(page);
+
   await expect(panel(page).getByRole("textbox", { name: "사이트 주소" })).toBeEnabled();
   await page.screenshot({ path: testInfo.outputPath("site-browser.png") });
   await visit(page, "example.com/one");
@@ -83,15 +84,19 @@ test("a late site open cannot cover the restored document and is reused on reope
   expect(await page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.siteCalls.filter((call) => call.command === "site_browser_open").length)).toBe(1);
 });
 
-test("clips the native site beside chat, hides when space runs out and restores after chat closes", async ({ page }) => {
+test("uses the central region beside inline chat without a second drawer inset, including narrow windows", async ({ page }) => {
   await seedWorkspace(page, 1); await page.goto("/"); await openBrowser(page); await visit(page, "example.com");
   await page.getByRole("button", { name: "에이전트 채팅", exact: true }).click();
   const chat = page.locator(".agent-chat-sheet"); await expect(chat).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.site.visible)).toBe(true);
   const chatBox = (await chat.boundingBox())!;
-  await expect.poll(() => page.evaluate(() => { const bounds = window.__BOX_BROWSER_FIXTURE__.siteBounds; return bounds ? bounds.x + bounds.width : Infinity; })).toBeLessThanOrEqual(chatBox.x - 12 + 0.5);
+  await expect.poll(() => page.evaluate(() => { const bounds = window.__BOX_BROWSER_FIXTURE__.siteBounds; return bounds ? bounds.x + bounds.width : Infinity; })).toBeLessThanOrEqual(chatBox.x + 0.5);
   await page.setViewportSize({ width: 600, height: 480 });
-  await expect.poll(() => page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.site.visible)).toBe(false);
+  await expect.poll(() => page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.site.visible)).toBe(true);
+  await expect.poll(() => page.evaluate(() => {
+    const region = document.querySelector('.site-browser-content')!.getBoundingClientRect();
+    return window.__BOX_BROWSER_FIXTURE__.siteBounds!.width - region.width;
+  })).toBeCloseTo(0, 0);
   await page.getByRole("button", { name: "채팅 숨기기" }).click();
   await expect.poll(() => page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.site.visible)).toBe(true);
   expect((await page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.siteBounds))!.viewportWidth).toBe(600);

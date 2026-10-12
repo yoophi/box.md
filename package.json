@@ -21,5 +21,10 @@
   },
   "devDependencies": {
     "turbo": "^2.5.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "react-resizable-panels": "4.11.2"
+    }
   }
 }

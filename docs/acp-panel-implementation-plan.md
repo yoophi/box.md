@@ -94,3 +94,9 @@ AW 별도 브랜치 [`box-md-ui-panels`](https://github.com/yoophi/agentic-works
 실행 로그는 `/tmp/box-md-gh45-ui-tests.log`, `/tmp/box-md-gh45-browser-rail.log`, `/tmp/box-md-gh45-ui-types.log`, `/tmp/box-md-gh45-ge-build.log`, `/tmp/box-md-gh45-browser-rail.log (Storybook build 포함)`다. 재현 명령과 API 계약은 해당 AW commit의 `docs/collapsible-panels-controller.md`에 있다.
 
 Box vendor는 아직 기존 pin이다. 실제 shared import/facade·inline 채팅·native 중앙 geometry 연결은 gh-46 범위이며 이 기록은 Box 통합 또는 native ACP 검증을 완료했다는 뜻이 아니다. gh-17 및 gh-47의 native/ACP 최종 gate는 유지한다.
+
+## Box 연동 구현 결과 (gh-46, 2026-10-13)
+
+vendor pin을 AW `8534a7b`로 갱신하고 실제 공유 component를 `packages/ui` facade로 연결했다. 중앙과 inline 채팅은 같은 그룹에서 mount를 유지하며 외부/제목/rail/헤더 토글, 마지막 폭 복원, actual central native bounds를 사용한다. 작은 창의 문서/채팅 scroll 및 native hide ACK 보호를 검증했다.
+
+상세 코드 경계·검증 범위·화면과 재현 명령은 [ACP 패널 연동 문서](acp-panels-integration.md)에 있다. 단위/상태 202개, 브라우저 47개, Home의 실제 HTTP/WS+ACP fixture integration 1개 및 기본 검사가 통과했다. 실제 native/설치된 provider 최종 gate는 그대로 gh-47/gh-3에 남는다.

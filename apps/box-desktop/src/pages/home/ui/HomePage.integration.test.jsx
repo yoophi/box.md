@@ -1,3 +1,4 @@
+import { installPanelLayoutFixture } from "@/shared/testing/panel-layout-fixture";
 import { writeFileSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { JSDOM } from "jsdom";
@@ -80,6 +81,7 @@ it("runs two permission-gated ACP turns through the actual HTTP/WS client while 
   dom.window.HTMLElement.prototype.getBoundingClientRect = function () {
     return this.classList.contains("site-browser-content") ? new dom.window.DOMRect(230, 156, 700, 500) : rectangle.call(this);
   };
+  teardown.push(installPanelLayoutFixture(dom.window));
   for (const key of [
     "window",
     "document",
@@ -90,6 +92,7 @@ it("runs two permission-gated ACP turns through the actual HTTP/WS client while 
     "Text",
     "MutationObserver",
     "DOMParser",
+    "DOMRect",
     "getComputedStyle",
     "requestAnimationFrame",
     "cancelAnimationFrame",

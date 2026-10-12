@@ -7,9 +7,9 @@ import { permalinkFromLink } from "@/entities/document";
 import { DocumentProperties } from "@/features/document-properties";
 import { DocumentConnections } from "@/features/document-connections";
 import { SiteBrowser, useSiteBrowser } from "@/features/site-browser";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DocumentHistory } from "@/features/document-history";
-import { Button } from "@box/ui";
+import { Button, CollapsibleResizablePanels, type CollapsibleResizablePanelsHandle } from "@box/ui";
 import { documentName } from "@/entities/document";
 import { MarkdownEditor } from "@/features/edit-document";
 import { useDocumentWorkspace } from "@/features/manage-document";
@@ -20,21 +20,11 @@ export function HomePage() {
   const workspace = useDocumentWorkspace();
   const browser = useSiteBrowser();
   const [showBrowser, setShowBrowser] = useState(false);
-  const [chatBounds, setChatBounds] = useState<DOMRect | null>(null);
+  const panels = useRef<CollapsibleResizablePanelsHandle>(null);
   const [linkToOpen, setLinkToOpen] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  useLayoutEffect(() => {
-    if (!showChat) { setChatBounds(null); return; }
-    const panel = window.document.querySelector<HTMLElement>(".agent-chat-sheet:not([hidden])");
-    const measure = () => setChatBounds(panel?.getBoundingClientRect() ?? null);
-    measure();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    if (panel) observer?.observe(panel);
-    window.addEventListener("resize", measure);
-    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
-  }, [showChat]);
   const chat = useAgentChat(workspace.workspace?.path, showChat);
   const [showCards, setShowCards] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -53,6 +43,13 @@ export function HomePage() {
   } = workspace;
   const commentKey = document.path ? `path:${document.path}` : null;
   const blocked = Boolean(pending || overwrite || showSettings);
+  const toggleChat = async () => {
+    const controller = panels.current;
+    if (!controller) return;
+    if (controller.getState().collapsedPanel !== "right") { controller.collapse("right"); return; }
+    // Before shrinking the primary area, confirm the foreign native child hidden.
+    if (browser.overlaySafe || await browser.controller.hide()) controller.expand("right");
+  };
   const requestDocument = (action: Parameters<typeof workspace.request>[0]) => { setShowBrowser(false); workspace.request(action); };
   return (
     <main className="document-workspace">
@@ -89,7 +86,7 @@ export function HomePage() {
         </button>
         <button className="sidebar-action" disabled={!folder || busy} onClick={() => { setShowBrowser(false); setShowCards(true); }}>문서 카드 보기</button>
         <button className="sidebar-action" aria-expanded={showBrowser} disabled={busy} onClick={() => setShowBrowser(!showBrowser)}>사이트 브라우저 <span>↗</span></button>
-        <button className="sidebar-action" disabled={!folder || !isDesktop()} aria-expanded={showChat} onClick={async () => { if (showChat) setShowChat(false); else if (browser.overlaySafe || await browser.controller.hide()) setShowChat(true); }}>에이전트 채팅</button>
+        <button className="sidebar-action" disabled={!folder || !isDesktop()} aria-expanded={showChat} onClick={() => void toggleChat()}>에이전트 채팅</button>
         <button className="sidebar-action" disabled={busy || !isDesktop()} onClick={() => setShowSettings(true)}>설정</button>
         <form className="open-document-link" onSubmit={(event) => {
           event.preventDefault();
@@ -160,6 +157,22 @@ export function HomePage() {
           <span>내 파일에 남는 생각.</span>
         </p>
       </aside>
+      <div className="workspace-body" inert={blocked} onClickCapture={(event) => {
+        const rail = event.target instanceof Element
+          ? event.target.closest('[data-panel-side="right"] > button[aria-expanded="false"]') : null;
+        if (rail && !browser.overlaySafe) {
+          event.preventDefault(); event.stopPropagation(); void toggleChat();
+        }
+      }}>
+        <CollapsibleResizablePanels
+          className="workspace-split"
+          controllerRef={panels}
+          defaultCollapsedPanel="right"
+          onStateChange={(state) => setShowChat(state.collapsedPanel !== "right")}
+          leftPanel={{
+            id: "box-primary", title: "작업 영역", collapsible: false, showTitle: false,
+            keepMounted: true, minSize: "30%", contentClassName: "workspace-panel-content workspace-primary",
+            content: (<>
       <section className="workspace-main" hidden={showBrowser || !browser.overlaySafe} inert={blocked} onClickCapture={(event) => {
         const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
         const href = anchor?.getAttribute("href");
@@ -247,8 +260,17 @@ export function HomePage() {
         </footer>
         </>}
       </section>
-      <AgentChatSheet model={chat} open={showChat} workspace={folder?.path} blocked={Boolean(pending || overwrite || showSettings)} onHide={() => setShowChat(false)} />
-      <SiteBrowser controller={browser.controller} state={browser.state} visible={showBrowser} blocked={blocked} chatVisible={showChat} occlusion={chatBounds} onClose={() => setShowBrowser(false)} />
+      <SiteBrowser controller={browser.controller} state={browser.state} visible={showBrowser} blocked={blocked} onClose={() => setShowBrowser(false)} />
+            </>),
+          }}
+          rightPanel={{
+            id: "box-agent-chat", title: "채팅 패널", keepMounted: true,
+            defaultSize: "360px", minSize: "220px", maxSize: "60%",
+            contentClassName: "workspace-panel-content workspace-chat",
+            content: <AgentChatSheet model={chat} open={showChat} variant="inline" workspace={folder?.path} blocked={blocked} onHide={() => panels.current?.collapse("right")} />,
+          }}
+        />
+      </div>
       {showSettings && browser.overlaySafe && <WorkspaceSettings savedPath={workspace.configuredWorkspacePath} activePath={folder?.path} onClose={() => setShowSettings(false)} onSave={(path) => {
         setShowSettings(false);
         workspace.request({ type: "workspace", path });

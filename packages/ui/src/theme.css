@@ -1,4 +1,13 @@
 @import "tailwindcss";
+@source "../../../vendor/agentic-workspace/packages/ui/src/components/collapsible-resizable-panels.tsx";
+@source "../../../vendor/agentic-workspace/packages/ui/src/components/resizable.tsx";
+@theme {
+  --color-background: #f7f5ec;
+  --color-foreground: #223a34;
+  --color-muted-foreground: #767c6f;
+  --color-border: #d8d8cb;
+  --color-ring: #9b7b37;
+}
 
 :root {
   font-family: "Avenir Next", "Apple SD Gothic Neo", sans-serif;

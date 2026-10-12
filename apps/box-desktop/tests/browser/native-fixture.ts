@@ -29,13 +29,15 @@ export async function seedWorkspace(
   count: number,
   options: {
     initialPath?: string | null;
+    workspacePath?: string;
+    workbenchConnection?: { baseUrl: string; token: string; expiresAt: string; incarnation: string };
     invalidRoots?: string[];
     contents?: Record<string, string>;
     persistConnections?: boolean;
   } = {},
 ) {
   await page.addInitScript(
-    ({ count, initialPath, invalidRoots, contents, persistConnections }) => {
+    ({ count, initialPath, invalidRoots, contents, persistConnections, workspacePath, workbenchConnection }) => {
       const key = "box.md.workspace-path";
       // Only the test IPC adapter uses browser storage. Production uses the native file repository.
       const connectionKey = "box.md.browser-fixture.connections";
@@ -64,7 +66,7 @@ export async function seedWorkspace(
       };
       const documents = Array.from({ length: count }, (_, index) => {
         const name = `note-${String(index + 1).padStart(3, "0")}.md`;
-        return { name, relativePath: name, path: `/fixture/${name}` };
+        return { name, relativePath: name, path: `${workspacePath}/${name}` };
       });
       state.documents = documents;
       const content = state.content,
@@ -87,6 +89,7 @@ export async function seedWorkspace(
         },
         async invoke(command: string, args: Record<string, unknown> = {}) {
           const path = String(args.path ?? "");
+          if (command === "get_workbench_connection" && workbenchConnection) return workbenchConnection;
           if (command.startsWith("site_browser_")) {
             state.siteCalls.push({ command, args: structuredClone(args) });
             if (state.failSite) throw new Error("사이트 상태를 확인하지 못했습니다.");
@@ -134,7 +137,7 @@ export async function seedWorkspace(
             return {
               path,
               documents:
-                path === "/fixture"
+                path === workspacePath
                   ? state.documents
                   : [
                       {
@@ -143,7 +146,7 @@ export async function seedWorkspace(
                         path: `${path}/other.md`,
                       },
                     ],
-              truncated: path === "/fixture" && state.truncated,
+              truncated: path === workspacePath && state.truncated,
             };
           }
           if (command === "open_document")
@@ -190,7 +193,9 @@ export async function seedWorkspace(
     {
       count,
       initialPath:
-        options.initialPath === undefined ? "/fixture" : options.initialPath,
+        options.initialPath === undefined ? (options.workspacePath ?? "/fixture") : options.initialPath,
+      workspacePath: options.workspacePath ?? "/fixture",
+      workbenchConnection: options.workbenchConnection,
       invalidRoots: options.invalidRoots ?? [],
       contents: options.contents ?? {},
       persistConnections: options.persistConnections ?? false,

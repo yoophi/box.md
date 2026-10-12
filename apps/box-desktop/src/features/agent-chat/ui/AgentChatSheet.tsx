@@ -18,7 +18,9 @@ export function AgentChatSheet({
   workspace,
   blocked,
   onHide,
+  variant = "sheet",
 }: {
+  variant?: "sheet" | "inline";
   model: AgentChatModel;
   open: boolean;
   workspace?: string;
@@ -78,7 +80,7 @@ export function AgentChatSheet({
   }
   return (
     <aside
-      className="agent-chat-sheet"
+      className={`agent-chat-sheet${variant === "inline" ? " agent-chat-inline" : ""}`}
       aria-label="에이전트 채팅"
       hidden={!open}
       inert={blocked}

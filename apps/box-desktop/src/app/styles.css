@@ -1,6 +1,16 @@
 @source "../../../../packages/ui/src";
 @source "../../../../packages/editor/src";
 
+.workspace-body { min-width: 0; min-height: 0; overflow: hidden; }
+.workspace-panel-content { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.workspace-primary { container-type: inline-size; }
+.workspace-main { flex: 1; }
+.workspace-chat { background: #f7f5ec; container-type: inline-size; }
+.workspace-split [data-panel-side="right"] > button { font-size: 12px; color: #596758; background: #eae8de; }
+.workspace-split [data-panel-side="right"] > button[aria-expanded="false"] { border-left: 1px solid #d8d8cb; }
+.workspace-split [data-separator]:not([data-disabled]) { cursor: col-resize; }
+
+
 .document-workspace {
   height: 100svh;
   display: grid;
@@ -111,7 +121,7 @@ kbd {
   overflow: hidden;
 }
 .workspace-main[hidden] { display: none; }
-.site-browser-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 24px 28px 20px; margin-right: min(var(--site-right-inset, 0px), calc(100% - 180px)); border-bottom: 1px solid #dbddd0; }
+.site-browser-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 24px 28px 20px; border-bottom: 1px solid #dbddd0; }
 .site-browser-title { flex: 1; min-width: 0; }
 .site-browser-title h1 { color: #223a34; font: bold 24px Georgia, serif; margin: 8px 0 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .site-browser-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; width: 100%; }
@@ -830,4 +840,45 @@ kbd {
   .settings-intro { margin: 12px 0 16px; }
   .settings-saved { padding: 10px 12px; margin-bottom: 14px; }
   .settings-hint { margin: 12px 0 16px; }
+}
+
+.agent-chat-sheet.agent-chat-inline { position: static; inset: auto; width: 100%; height: 100%; flex: 1; min-width: 0; z-index: auto; border: 0; border-radius: 0; box-shadow: none; }
+.agent-chat-inline .agent-chat-heading { padding: 16px 16px 10px; }
+.agent-chat-inline .agent-chat-heading h2 { font-size: 20px; }
+.agent-chat-inline .agent-chat-workspace { margin: 0 16px 14px; }
+.agent-chat-inline .agent-chat-start { margin: 0 16px 12px; }
+.agent-chat-inline .agent-chat-log, .agent-chat-inline .agent-chat-composer { padding: 12px 16px; }
+.agent-chat-inline .agent-chat-error, .agent-chat-inline .agent-chat-connection { margin-inline: 16px; }
+.agent-chat-inline .agent-chat-session-picker { width: calc(100% - 32px); margin-inline: 16px; }
+@container (max-width: 550px) {
+  .document-header, .site-browser-heading { padding: 16px; gap: 12px; }
+  .document-status, .site-browser-status { padding-inline: 16px; }
+  .document-properties, .document-connections, .link-form { padding-inline: 16px; }
+  .reading-layout { grid-template-columns: minmax(0, 1fr); overflow: auto; }
+}
+
+@container (max-width: 450px) {
+  .document-properties label { width: 100%; flex-wrap: wrap; }
+  .document-properties input, .document-properties select { min-width: 0; width: 100%; max-width: 100%; }
+  .link-form select, .link-form input, .connection-forms input, .connection-forms select { min-width: 0; max-width: 100%; }
+  .site-browser-toolbar input { min-width: 0; }
+  .document-status > span { min-width: 0; overflow-wrap: anywhere; }
+}
+/* Narrow columns must keep an editable area and allow controls to scroll. */
+.workspace-primary > .workspace-main:not(.site-browser-panel) { overflow-y: auto; }
+.workspace-primary .editor-layout, .workspace-primary .reading-layout { flex: 1 0 280px; min-height: 280px; }
+.agent-chat-sheet.agent-chat-inline { overflow-y: auto; }
+.agent-chat-inline > :not(.agent-chat-log) { flex-shrink: 0; }
+@container (max-width: 550px) {
+  .document-title { flex-basis: 100%; }
+  .file-actions { width: 100%; }
+  .document-prose { padding: 24px 24px 80px; }
+  .mode-bar { padding-inline: 16px; flex-wrap: wrap; }
+  .format-toolbar { padding-inline: 12px; }
+}
+
+@container (max-width: 280px) {
+  .agent-chat-composer > div { flex-wrap: wrap; }
+  .agent-chat-composer span { flex-basis: 100%; }
+  .agent-chat-composer button { white-space: nowrap; }
 }

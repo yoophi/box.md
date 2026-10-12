@@ -90,11 +90,11 @@ it("does not treat a visible hide response as proof that a modal is safe", async
   expect(controller.getSnapshot().error).toContain("표시 상태");
 });
 
-it("clips the native rectangle to the viewport and chat while suppressing unusable space", () => {
+it("uses the measured central rectangle and clips it to the viewport without drawer subtraction", () => {
   const rect = { left: 230, top: 156, right: 1100, bottom: 696 };
   expect(siteBounds(rect, 1100, 760)).toEqual(bounds);
-  expect(siteBounds(rect, 1100, 760, new DOMRect(668, 22, 410, 716))).toEqual({ ...bounds, width: 426 });
-  expect(siteBounds(rect, 600, 480, new DOMRect(168, 22, 410, 436))).toBeNull();
+  expect(siteBounds({ ...rect, right: 656 }, 1100, 760)).toEqual({ ...bounds, width: 426 });
+  expect(siteBounds({ ...rect, right: 320 }, 600, 480)).toBeNull();
   expect(siteBounds({ ...rect, top: 740 }, 1100, 760)).toBeNull();
 });
 
