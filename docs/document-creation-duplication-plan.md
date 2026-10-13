@@ -2,7 +2,13 @@
 
 신규 문서와 복제본은 선택한 작업 디렉터리에 `{permalink}.md`로 생성한다. ID는 앱 로컬 시각의 `yyMMddHHmmss`와 OS CSPRNG 4 byte의 소문자 hex 8자를 `-`로 연결한다. shell 실행 없이 `date +%y%m%d%H%M%S`와 `openssl rand -hex 4`에 해당하는 값을 만든다. 기존 문서의 ID나 파일명을 일괄 변경하지 않는다.
 
-infrastructure 구현에는 현재 Cargo.lock에 존재하는 chrono 0.4.45와 getrandom 0.4.3을 사용할 계획이다. [Chrono Local](https://docs.rs/chrono/latest/chrono/struct.Local.html)의 `Local::now()`로 로컬 시각/offset을 얻고, [getrandom fill](https://docs.rs/getrandom/0.4.3/getrandom/fn.fill.html)로 OS random byte를 채운다. adapter 실패를 정상 ID로 숨기지 않는다. 이 계획 작성만으로 생성 API가 구현된 것은 아니다.
+infrastructure 구현은 Cargo.lock에 존재하는 chrono 0.4.45와 getrandom 0.4.3을 사용한다. `Local::now()`로 로컬 시각/offset을 얻고 `getrandom::fill`로 OS random byte를 채운다. adapter 실패를 정상 ID로 숨기지 않는다.
+
+## 구현 완료 판정 (2026-10-13)
+
+서비스/native gh-66 (`2aed2ec`), UI gh-67 (`7aa9437`), 수용 기준 감사 gh-68 (`43bfe8e`)를 각각 구현·검증하고 main에 push했다. [최종 감사](document-creation-duplication-acceptance-audit.md)는 gh-64 기준1~7의 소스와 실제 파일·command 및 브라우저 UI 결과를 연결한다. 새 문서와 복제본의 ID 파일 생성, 원문 보존, Save As 제거 및 일반 저장/legacy 호환을 완료 판정한다.
+
+UI와 MCP용 공통 mutation 계약은 같은 application을 사용한다. 문서 MCP handler의 실제 discovery/HTTP 실행은 gh-51, native grant/ACP 주입 및 외부 변경 UI 처리는 gh-52, 설치 agent와 최신 macOS 창 검증은 gh-53에 유지한다. 이 기능 감사로 해당 후속 작업을 완료 처리하지 않는다.
 
 ## 순차 구현 단위
 
