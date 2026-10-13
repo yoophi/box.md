@@ -1,5 +1,7 @@
 import { installPanelLayoutFixture } from "@/shared/testing/panel-layout-fixture";
 import { documentProperty } from "@box/editor";
+import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { cleanup, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,7 +12,8 @@ import { act } from "@testing-library/react";
 
 vi.mock("@/entities/agent-chat", () => ({ createChatClient: vi.fn() }));
 
-const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]> }));
+type Created = { path: string; content: string; revision: string; permalink: string };
+const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]>, created: {} as Record<string, Created>, requests: {} as Record<string, Created>, createGate: null as Promise<void> | null, failCreate: false, loseResponse: false, rejectIdentityOnce: false }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, args: Record<string, unknown>) => {
   if (command.startsWith("site_browser_")) return { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false };
@@ -21,11 +24,43 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, a
       if (native.selectionFailures.includes(String(args.path))) throw new Error("작업 루트 연결 실패");
       native.selectedRoot = String(args.path);
     }
-    if (args.path !== "/workspace") return { path: args.path, documents: [{ path: `${args.path}/other.md`, name: "other.md", relativePath: "other.md" }], truncated: false, warnings: native.workspaceWarnings };
-    return { path: "/workspace", documents: [{ path: native.path, name: native.path.split("/").pop(), relativePath: native.path.split("/").pop() }, ...(native.targetContent === null ? [] : [{ path: "/workspace/target.md", name: "target.md", relativePath: "target.md" }])], truncated: false, warnings: native.workspaceWarnings };
+    const generation = native.selectedRoot === args.path ? `scope:${args.path}` : undefined;
+    if (args.path !== "/workspace") return { path: args.path, generation, documents: [{ path: `${args.path}/other.md`, name: "other.md", relativePath: "other.md" }], truncated: false, warnings: native.workspaceWarnings };
+    return { path: "/workspace", generation, documents: [{ path: native.path, name: native.path.split("/").pop(), relativePath: native.path.split("/").pop() }, ...(native.targetContent === null ? [] : [{ path: "/workspace/target.md", name: "target.md", relativePath: "target.md" }]), ...Object.values(native.created).map((doc) => ({ path: doc.path, name: doc.path.split("/").pop(), relativePath: doc.path.split("/").pop() }))], truncated: false, warnings: native.workspaceWarnings };
   }
-  if (command === "open_document") return { path: args.path, content: args.path === "/workspace/target.md" ? native.targetContent : native.content, revision: String(native.revision) };
+  if (command === "create_document" || command === "duplicate_document") {
+    if (native.createGate) await native.createGate;
+    if (native.failCreate) throw { code: "io", message: "생성 실패" };
+    const key = `${args.generation}:${args.requestId}`;
+    let doc = native.requests[key];
+    if (!doc) {
+      // This scalar-only test adapter preserves the response's other bytes.
+      // The actual native CST/metadata behavior is covered by Rust file tests.
+      const property = (text: string, key: string, value: string) => {
+        const newline = text.includes("\r\n") ? "\r\n" : "\n";
+        const line = `${key}: ${JSON.stringify(value)}`;
+        const opening = /^(?:\uFEFF)?---[ \t]*\r?\n/.exec(text);
+        if (!opening) return `${text.startsWith("\uFEFF") ? "\uFEFF" : ""}---${newline}${line}${newline}---${newline}${text.replace(/^\uFEFF/, "")}`;
+        const field = new RegExp(`^${key}:[^\\r\\n]*`, "m");
+        return field.test(text) ? text.replace(field, line) : text.replace(opening[0], `${opening[0]}${line}${newline}`);
+      };
+      const id = `261013174600-${Object.keys(native.created).length.toString(16).padStart(8, "0")}`;
+      let content = String(args.content);
+      if (command === "duplicate_document") {
+        const path = (args.document as {path: string}).path;
+        content = property(content, "title", `${documentProperty(content, "title") || path.split("/").pop()} 사본`);
+      }
+      doc = { path: `${String(args.generation).slice(6)}/${id}.md`, content: property(content, "permalink", id), revision: "created-1", permalink: id };
+      native.created[doc.path] = doc; native.requests[key] = { ...doc };
+    }
+    if (native.loseResponse) { native.loseResponse = false; throw new Error("response lost"); }
+    return { document: { ...doc } };
+  }
+  if (command === "open_document") return native.created[String(args.path)] ?? { path: args.path, content: args.path === "/workspace/target.md" ? native.targetContent : native.content, revision: String(native.revision) };
   if (command === "save_document") {
+    if (native.rejectIdentityOnce) { native.rejectIdentityOnce = false; throw {code:"duplicatePermalink", message:"identity collision"}; }
+    const created = native.created[String(args.path)];
+    if (created) { created.content = String(args.content); created.revision += "1"; return { ...created }; }
     if (args.path === "/workspace/target.md") { native.targetContent = String(args.content); return { path: args.path, content: native.targetContent, revision: "2" }; }
     native.versions.push(native.content); native.content = String(args.content); native.revision++;
     return { path: args.path, content: native.content, revision: String(native.revision) };
@@ -43,7 +78,7 @@ vi.mock("@tauri-apps/plugin-deep-link", () => ({ getCurrent: async () => native.
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: async () => {} }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ onCloseRequested: async () => () => {}, close: async () => {} }) }));
-vi.mock("@tauri-apps/plugin-dialog", () => ({ open: async (options: { directory?: boolean }) => options.directory ? native.folder : null, save: async () => null }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: async (options: { directory?: boolean }) => options.directory ? native.folder : null, save: vi.fn(async () => null) }));
 
 let restorePanelLayout: () => void;
 beforeEach(() => {
@@ -55,9 +90,140 @@ beforeEach(() => {
   native.content = "---\nsummary: 원래 요약\ncustom: {enabled: true}\n---\n# 문서\n\n안녕 🌱\n";
   native.revision = 1; native.versions = []; native.path = "/workspace/note.md"; native.urls = null; native.targetContent = null; native.comments = {};
   native.folder = null; native.brokenRoots = []; native.selectionFailures = []; native.selectedRoot = null; native.workspaceWarnings = [];
+  native.created = {}; native.requests = {}; native.createGate = null; native.failCreate = false; native.loseResponse = false;
+  native.rejectIdentityOnce = false;
+  vi.mocked(save).mockClear(); vi.mocked(invoke).mockClear();
 });
 afterEach(() => { cleanup(); restorePanelLayout(); vi.restoreAllMocks(); });
 describe("document workspace flows", () => {
+  it("stages a dated link on a legacy document without changing its file or identity before apply/save", async () => {
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    const original = native.content;
+    await user.click(screen.getByRole("button", { name: "새 링크 생성" }));
+    const id = (screen.getByRole("textbox", { name: "permalink" }) as HTMLInputElement).value;
+    expect(id).toMatch(/^[0-9]{12}-[0-9a-f]{8}$/);
+    expect(native.content).toBe(original);
+    await user.click(screen.getByRole("button", { name: "문서에 적용" }));
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await waitFor(() => expect(documentProperty(native.content, "permalink")).toBe(id));
+    expect(native.path).toBe("/workspace/note.md");
+    expect(Object.keys(native.created)).toHaveLength(0);
+  });
+  it("assigns a dated identity to a legacy file and retries a collision without renaming it", async () => {
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    native.rejectIdentityOnce = true;
+    let counter = 0;
+    const random = vi.spyOn(crypto, "getRandomValues").mockImplementation((array) => {
+      if (!(array instanceof Uint8Array)) throw new Error("unexpected array");
+      array.fill(0); array[3] = counter++; return array;
+    });
+    try {
+      await user.click(screen.getByRole("button", { name: /^저장/ }));
+      await waitFor(() => expect(documentProperty(native.content, "permalink")).toMatch(/^[0-9]{12}-00000001$/));
+      const calls = vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "save_document");
+      expect(calls).toHaveLength(2);
+      expect(calls.every(([, args]) => (args as Record<string, unknown>).path === "/workspace/note.md" && (args as Record<string, unknown>).expectedRevision === "1")).toBe(true);
+      expect(native.versions).toHaveLength(1);
+      expect(Object.keys(native.created)).toHaveLength(0);
+    } finally { random.mockRestore(); }
+  });
+  it("creates an ID-named file in the selected workspace without a filename picker", async () => {
+    const user = userEvent.setup(); render(<HomePage />);
+    await screen.findByRole("button", { name: /note.md/ });
+    expect((screen.getByRole("textbox", { name: "permalink" }) as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByText("먼저 저장하면 고정 링크가 생성됩니다.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown 원문" }), { target: { value: "# 새 본문\n" } });
+    expect(screen.queryByRole("button", { name: "다른 이름 저장" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await screen.findByRole("heading", { name: "261013174600-00000000.md" });
+    const created = Object.values(native.created)[0];
+    expect(created.path).toBe(`/workspace/${created.permalink}.md`);
+    expect(created.content.endsWith("# 새 본문\n")).toBe(true);
+    expect((screen.getByRole("textbox", { name: "permalink" }) as HTMLInputElement).value).toBe(created.permalink);
+    expect(vi.mocked(save)).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown 원문" }), { target: { value: created.content + "later\n" } });
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await waitFor(() => expect(native.created[created.path].content).toContain("later"));
+    expect(Object.keys(native.created)).toHaveLength(1);
+    expect(vi.mocked(invoke).mock.calls.some(([cmd, args]) => cmd === "save_document" && (args as Record<string, unknown>).expectedRevision === "created-1")).toBe(true);
+  });
+  it("duplicates a dirty document with a new identity and title while keeping the original", async () => {
+    native.content = "---\npermalink: original\ntitle: 제목\ncustom: {enabled: true}\n---\n# 본문\n";
+    const original = native.content;
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const draft = original + "미저장 내용\n";
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown 원문" }), { target: { value: draft } });
+    await user.click(screen.getByRole("button", { name: /^복제/ }));
+    await screen.findByRole("heading", { name: "261013174600-00000000.md" });
+    const copy = Object.values(native.created)[0];
+    expect(documentProperty(copy.content, "title")).toBe("제목 사본");
+    expect(copy.content).toContain("custom: {enabled: true}");
+    expect(copy.content.endsWith("# 본문\n미저장 내용\n")).toBe(true);
+    expect(native.content).toBe(original); expect(native.versions).toHaveLength(0);
+    expect(vi.mocked(invoke).mock.calls.some(([cmd, args]) => cmd === "duplicate_document" && (args as Record<string, unknown>).expectedRevision === "1")).toBe(true);
+    expect(vi.mocked(save)).not.toHaveBeenCalled();
+  });
+  it("keeps the dirty editor and its instance on duplication failure and retries a terminal error", async () => {
+    native.failCreate = true;
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const editor = screen.getByRole("textbox", { name: "Markdown 원문" }) as HTMLTextAreaElement;
+    const draft = native.content + "dirty\n";
+    fireEvent.change(editor, { target: { value: draft } });
+    await user.click(screen.getByRole("button", { name: /^복제/ }));
+    await screen.findByText("생성 실패");
+    expect(screen.getByRole("textbox", { name: "Markdown 원문" })).toBe(editor);
+    expect(editor.value).toBe(draft); expect(Object.keys(native.created)).toHaveLength(0);
+    expect(screen.getByText("저장하지 않은 변경사항")).toBeTruthy();
+    native.failCreate = false;
+    await user.click(screen.getByRole("button", { name: /^복제/ }));
+    await screen.findByRole("heading", { name: "261013174600-00000000.md" });
+    const calls = vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "duplicate_document");
+    expect((calls[0][1] as Record<string, unknown>).requestId).not.toBe((calls[1][1] as Record<string, unknown>).requestId);
+    expect(documentProperty(Object.values(native.created)[0].content, "title")).toBe("note.md 사본");
+  });
+  it("reuses the request ID after a lost creation response without making a second file", async () => {
+    native.loseResponse = true;
+    const user = userEvent.setup(); render(<HomePage />);
+    await screen.findByRole("button", { name: /note.md/ });
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const editor = screen.getByRole("textbox", { name: "Markdown 원문" }) as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "# draft\n" } });
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await screen.findByText("response lost");
+    expect(editor.value).toBe("# draft\n");
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await screen.findByRole("heading", { name: "261013174600-00000000.md" });
+    expect(Object.keys(native.created)).toHaveLength(1);
+    const calls = vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === "create_document");
+    expect((calls[0][1] as Record<string, unknown>).requestId).toBe((calls[1][1] as Record<string, unknown>).requestId);
+  });
+  it("ignores an old creation response after remounting in another workspace", async () => {
+    let release!: () => void;
+    native.createGate = new Promise<void>((resolve) => { release = resolve; });
+    const user = userEvent.setup(); const view = render(<HomePage />);
+    await screen.findByRole("button", { name: /note.md/ });
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Markdown 원문" }), { target: { value: "old draft" } });
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await waitFor(() => expect(vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === "create_document")).toBe(true));
+    view.unmount(); localStorage.setItem("box.md.workspace-path", "/other"); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /other.md/ }));
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const editor = screen.getByRole("textbox", { name: "Markdown 원문" }) as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "new root draft" } });
+    await act(async () => { release(); await Promise.resolve(); });
+    expect(editor.value).toBe("new root draft");
+    expect(screen.getByRole("heading", { name: /^other.md/ })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "261013174600-00000000.md" })).toBeNull();
+  });
   it("shows a partial listing warning and refuses an incomplete permalink lookup", async () => {
     native.workspaceWarnings = [{path:"unreadable",code:"io"}];
     native.content = "---\npermalink: stable\n---\nbody";
@@ -274,7 +440,7 @@ describe("document workspace flows", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: "연결할 문서" }), "/workspace/target.md");
     await user.click(screen.getByRole("button", { name: "링크 추가" }));
     const link = await screen.findByRole("link", { name: "target.md" });
-    expect(documentProperty(native.targetContent!, "permalink")).toMatch(/^[a-f0-9-]{36}$/);
+    expect(documentProperty(native.targetContent!, "permalink")).toMatch(/^[0-9]{12}-[a-f0-9]{8}$/);
     expect(native.targetContent?.endsWith("# 대상\n\n대상 본문 그대로\n")).toBe(true);
     expect(native.content).toBe(source);
     fireEvent.click(link);

@@ -16,6 +16,11 @@ interface NativeFixture {
   failSite: boolean;
   siteOpenDelay: number;
   siteHideDelay: number;
+  selectedRoot: string | null;
+  generation: number;
+  failCreation: boolean;
+  loseCreateResponse: boolean;
+  creationCalls: { command: string; args: Record<string, unknown> }[];
 }
 declare global {
   interface Window {
@@ -56,6 +61,7 @@ export async function seedWorkspace(
         failConnections: false,
         site: { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false },
         siteCalls: [], siteBounds: null, failSite: false, siteOpenDelay: 0, siteHideDelay: 0,
+        selectedRoot: null, generation: 0, failCreation: false, loseCreateResponse: false, creationCalls: [],
       };
       window.__BOX_BROWSER_FIXTURE__ = state;
       const setItem = Storage.prototype.setItem;
@@ -71,6 +77,16 @@ export async function seedWorkspace(
       state.documents = documents;
       const content = state.content,
         revisions = new Map<string, number>();
+      const creationResults = new Map<string, { path: string; content: string; revision: string; permalink: string }>();
+      const fixtureProperty = (text: string, key: string, value: string) => {
+        const nl = text.includes("\r\n") ? "\r\n" : "\n", line = `${key}: ${JSON.stringify(value)}`;
+        const opening = /^(?:\uFEFF)?---[ \t]*\r?\n/.exec(text);
+        if (!opening) return `${text.startsWith("\uFEFF") ? "\uFEFF" : ""}---${nl}${line}${nl}---${nl}${text.replace(/^\uFEFF/, "")}`;
+        const rest = text.slice(opening[0].length), closing = /^(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/m.exec(rest);
+        if (!closing) throw { code: "invalidMetadata", message: "fixture unclosed header" };
+        const head = rest.slice(0, closing.index), field = new RegExp(`^${key}:[^\\r\\n]*`, "m");
+        return opening[0] + (field.test(head) ? head.replace(field, line) : `${line}${nl}${head}`) + rest.slice(closing.index);
+      };
       let callbackId = 0;
       const siteHistory: string[] = [];
       let siteIndex = -1;
@@ -134,20 +150,50 @@ export async function seedWorkspace(
           if (command === "list_workspace_documents" || command === "select_document_workspace") {
             if (state.invalidRoots.includes(path))
               throw new Error("작업 디렉터리에 접근할 수 없습니다.");
+            if (command === "select_document_workspace") {
+              if (state.selectedRoot !== path || args.rebind) state.generation++;
+              state.selectedRoot = path;
+            }
             return {
               path,
+              generation: state.selectedRoot === path ? `scope:${state.generation}:${path}` : undefined,
               documents:
                 path === workspacePath
-                  ? state.documents
+                  ? state.documents.filter((doc) => doc.path.startsWith(`${path}/`))
                   : [
                       {
                         name: "other.md",
                         relativePath: "other.md",
                         path: `${path}/other.md`,
                       },
-                    ],
+                    ].concat(state.documents.filter((doc) => doc.path.startsWith(`${path}/`))),
               truncated: path === workspacePath && state.truncated,
             };
+          }
+          if (command === "create_document" || command === "duplicate_document") {
+            state.creationCalls.push({ command, args: structuredClone(args) });
+            if (state.failCreation) throw { code: "io", message: "문서 생성 실패" };
+            const generation = `scope:${state.generation}:${state.selectedRoot}`;
+            if (args.generation !== generation || !state.selectedRoot) throw { code: "scopeRevoked", message: "fixture generation revoked" };
+            const key = `${generation}:${args.requestId}`;
+            let result = creationResults.get(key);
+            if (!result) {
+              const id = `261013174600-${creationResults.size.toString(16).padStart(8, "0")}`;
+              let input = String(args.content);
+              if (command === "duplicate_document") {
+                const relative = String((args.document as {path: string}).path);
+                let title = /^title:[ \t]*(.*?)[ \t]*\r?$/m.exec(input)?.[1] ?? relative.split("/").pop()!;
+                if (title.startsWith('"')) title = JSON.parse(title);
+                input = fixtureProperty(input, "title", `${title} 사본`);
+              }
+              result = { path: `${state.selectedRoot}/${id}.md`, content: fixtureProperty(input, "permalink", id), revision: "1", permalink: id };
+              content.set(result.path, result.content); revisions.set(result.path, 1);
+              state.documents.push({ path: result.path, name: `${id}.md`, relativePath: `${id}.md` });
+              state.writes.push({ path: result.path, content: result.content });
+              creationResults.set(key, result);
+            }
+            if (state.loseCreateResponse) { state.loseCreateResponse = false; throw new Error("fixture response lost"); }
+            return { document: { ...result } };
           }
           if (command === "open_document")
             return {

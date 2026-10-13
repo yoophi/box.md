@@ -10,6 +10,9 @@ export interface DocumentSnapshot {
   revision: string;
   historyWarning?: string | null;
 }
+export interface CreatedDocumentResult {
+  document: DocumentSnapshot & { permalink: string };
+}
 export interface DocumentError {
   code: string;
   message: string;

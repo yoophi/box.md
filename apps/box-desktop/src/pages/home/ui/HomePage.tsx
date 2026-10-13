@@ -36,13 +36,12 @@ export function HomePage() {
     error,
     notice,
     pending,
-    overwrite,
     workspace: folder,
     refreshing,
     reading,
   } = workspace;
   const commentKey = document.path ? `path:${document.path}` : null;
-  const blocked = Boolean(pending || overwrite || showSettings);
+  const blocked = Boolean(pending || showSettings);
   const toggleChat = async () => {
     const controller = panels.current;
     if (!controller) return;
@@ -55,7 +54,7 @@ export function HomePage() {
     <main className="document-workspace">
       <aside
         className="workspace-sidebar"
-        inert={Boolean(pending || overwrite || showSettings)}
+        inert={Boolean(pending || showSettings)}
       >
         <a className="wordmark" href="#">
           box.md<span>▧</span>
@@ -220,10 +219,10 @@ export function HomePage() {
             )}
             <button
               className="plain-button"
-              disabled={busy || reading || !isDesktop()}
-              onClick={() => void workspace.saveDocument(true)}
+              disabled={busy || !document.path || !folder || !isDesktop()}
+              onClick={() => void workspace.duplicateDocument()}
             >
-              다른 이름 저장
+              복제 <kbd>⇧⌘S</kbd>
             </button>
             <Button
               disabled={busy || reading || !isDesktop()}
@@ -241,7 +240,7 @@ export function HomePage() {
           </div>
         )}
         {folder && !reading && <LinkDocument documents={folder.documents} currentPath={document.path} disabled={busy} onInsert={workspace.insertDocumentLink} />}
-        <DocumentProperties content={document.content} disabled={busy || reading} onChange={workspace.restoreVersion} />
+        <DocumentProperties content={document.content} disabled={busy || reading} identityPending={!document.path} onChange={workspace.restoreVersion} />
         <DocumentConnections path={document.path} content={document.content} baseline={document.baseline} workspace={folder} disabled={busy} onOpen={(id) => workspace.request({ type: "permalink", path: id })} />
         <div className={reading ? "reading-layout" : "editor-layout"}>
         {showHistory && document.path ? <DocumentHistory key={document.path} path={document.path} dirty={dirty} busy={busy || reading} onRestore={workspace.restoreVersion} onClose={() => setShowHistory(false)} /> : <MarkdownEditor
@@ -279,7 +278,7 @@ export function HomePage() {
         workspace.request({ type: "workspace", path });
       }} />}
       {(blocked || !showBrowser) && !browser.overlaySafe && browser.state.error && <div className="browser-cover-recovery" role="alert"><span>사이트 표시를 정리하지 못했습니다. 다시 시도해주세요.</span><button onClick={() => browser.controller.retry()}>페이지 숨김 다시 시도</button></div>}
-      {pending && !overwrite && browser.overlaySafe && (
+      {pending && browser.overlaySafe && (
         <div className="modal-overlay">
           <section
             className="confirm-dialog"
@@ -308,34 +307,6 @@ export function HomePage() {
                 onClick={() => void workspace.resolvePending("save")}
               >
                 저장 후 계속
-              </Button>
-            </div>
-          </section>
-        </div>
-      )}
-      {overwrite && browser.overlaySafe && (
-        <div className="modal-overlay">
-          <section
-            className="confirm-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="overwrite-title"
-          >
-            <h2 id="overwrite-title">기존 파일을 바꿀까요?</h2>
-            <p>{documentName(overwrite.path)} 파일을 현재 문서로 덮어씁니다.</p>
-            <div className="dialog-actions">
-              <button
-                autoFocus
-                disabled={busy}
-                onClick={workspace.cancelOverwrite}
-              >
-                취소
-              </button>
-              <Button
-                disabled={busy}
-                onClick={() => void workspace.confirmOverwrite()}
-              >
-                덮어쓰기
               </Button>
             </div>
           </section>

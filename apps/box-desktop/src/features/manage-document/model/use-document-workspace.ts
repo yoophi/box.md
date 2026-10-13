@@ -1,14 +1,15 @@
-import { documentProperty, setDocumentProperty } from "@box/editor";
+import { documentProperty } from "@box/editor";
 import { getCurrent, onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   readDocument,
   writeDocument,
-  documentRevision,
+  createDocument,
+  duplicateDocument as duplicateFile,
   documentName,
   errorMessage,
   withDocumentPermalink,
@@ -67,10 +68,9 @@ export function useDocumentWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState("새 문서에 생각을 기록해보세요.");
   const [pending, setPending] = useState<Action | null>(null);
-  const [overwrite, setOverwrite] = useState<{
-    path: string;
-    revision: string;
-  } | null>(null);
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const creationAttempt = useRef<{ kind: "create" | "duplicate"; document: DocumentState; root: WorkspaceSnapshot; requestId: string } | null>(null);
   const docRef = useRef(document);
   docRef.current = document;
   const busyRef = useRef(false);
@@ -90,22 +90,23 @@ export function useDocumentWorkspace() {
   }
   function end() {
     busyRef.current = false;
-    setBusy(false);
+    if (alive.current) setBusy(false);
   }
 
   const refreshWorkspace = useCallback(async () => {
-    const path = workspaceRef.current?.path;
+    const root = workspaceRef.current;
+    const path = root?.path;
     if (!path || refreshLock.current) return;
     refreshLock.current = true;
     setRefreshing(true);
     try {
       const snapshot = await listWorkspace(path);
-      if (workspaceRef.current?.path === path) setWorkspace(snapshot);
+      if (alive.current && workspaceRef.current?.path === path && workspaceRef.current?.generation === root?.generation && root?.generation === snapshot.generation) setWorkspace(snapshot);
     } catch (cause) {
-      setError(errorMessage(cause));
+      if (alive.current && workspaceRef.current?.path === path && workspaceRef.current?.generation === root?.generation) setError(errorMessage(cause));
     } finally {
       refreshLock.current = false;
-      setRefreshing(false);
+      if (alive.current) setRefreshing(false);
     }
   }, []);
 
@@ -114,8 +115,9 @@ export function useDocumentWorkspace() {
     expectedRevision: string | null,
   ): Promise<boolean> {
     const current = docRef.current;
-    const content = withDocumentPermalink(current.content);
-    const saved = await writeDocument(path, content, expectedRevision);
+    const root = workspaceRef.current;
+    const saved = await writeWithIdentity(path, current.content, expectedRevision);
+    if (!currentRequest(current, root)) return false;
     setDocument((state) => ({
       ...state,
       path: saved.path,
@@ -130,6 +132,59 @@ export function useDocumentWorkspace() {
     return true;
   }
 
+  async function writeWithIdentity(path: string, content: string, revision: string | null) {
+    let existing = true;
+    try { existing = Boolean(documentProperty(content, "permalink")); } catch { /* Keep malformed source editable. */ }
+    for (let attempt = 0; attempt < 32; attempt++) {
+      try { return await writeDocument(path, withDocumentPermalink(content), revision); }
+      catch (cause) {
+        if (existing || !cause || typeof cause !== "object" || !("code" in cause) || cause.code !== "duplicatePermalink") throw cause;
+      }
+    }
+    throw new Error("문서 식별자 충돌이 반복되었습니다. 다시 시도해주세요.");
+  }
+
+  function currentRequest(current: DocumentState, root: WorkspaceSnapshot | null) {
+    return alive.current && docRef.current.key === current.key && docRef.current.path === current.path
+      && docRef.current.content === current.content && docRef.current.revision === current.revision
+      && workspaceRef.current?.path === root?.path && workspaceRef.current?.generation === root?.generation;
+  }
+  async function createOrDuplicate(kind: "create" | "duplicate") {
+    const current = docRef.current, root = workspaceRef.current;
+    if (!root?.generation) throw new Error("먼저 설정에서 작업 디렉터리를 선택해주세요.");
+    let relative = "";
+    if (kind === "duplicate") {
+      const prefix = `${root.path.replace(/\\/g, "/").replace(/\/+$/, "")}/`;
+      const path = current.path?.replace(/\\/g, "/");
+      if (!path?.startsWith(prefix) || !current.revision) throw new Error("현재 작업 디렉터리에 저장된 문서를 복제해주세요.");
+      relative = path.slice(prefix.length);
+    }
+    let attempt = creationAttempt.current;
+    if (!attempt || attempt.kind !== kind || attempt.root.path !== root.path || attempt.root.generation !== root.generation
+      || attempt.document.key !== current.key || attempt.document.path !== current.path
+      || attempt.document.content !== current.content || attempt.document.revision !== current.revision) {
+      attempt = { kind, document: current, root, requestId: crypto.randomUUID() };
+      creationAttempt.current = attempt;
+    }
+    try {
+      const saved = kind === "create"
+        ? await createDocument(root.generation, attempt.requestId, current.content)
+        : await duplicateFile(root.generation, attempt.requestId, relative, current.revision!, current.content);
+      if (!currentRequest(current, root)) return false;
+      creationAttempt.current = null;
+      setDocument({ ...saved, baseline: saved.content, key: ++nextDocumentKey });
+      setReading(false);
+      setNotice(saved.historyWarning ? "파일을 만들었지만 이력을 기록하지 못했습니다." : kind === "duplicate" ? "새 파일로 복제했습니다." : "새 문서를 저장했습니다.");
+      await refreshWorkspace();
+      return true;
+    } catch (cause) {
+      // Transport failures can lose a successful response; retain the same ID.
+      // A terminal application error permits a fresh user attempt.
+      if (cause && typeof cause === "object" && "code" in cause && typeof cause.code === "string") creationAttempt.current = null;
+      throw cause;
+    }
+  }
+
   async function insertDocumentLink(targetPath: string) {
     if (!isDesktop() || readingRef.current || !begin()) return;
     try {
@@ -138,8 +193,8 @@ export function useDocumentWorkspace() {
       const target = await readDocument(targetPath);
       let permalink = documentProperty(target.content, "permalink");
       if (!permalink) {
-        permalink = crypto.randomUUID();
-        const saved = await writeDocument(target.path, setDocumentProperty(target.content, "permalink", permalink), target.revision);
+        const saved = await writeWithIdentity(target.path, target.content, target.revision);
+        permalink = documentProperty(saved.content, "permalink");
         if (saved.historyWarning) setError(`대상 문서 히스토리 기록 실패: ${saved.historyWarning}`);
       }
       const label = documentName(target.path).replace(/\\/g, "\\\\").replace(/([\[\]])/g, "\\$1");
@@ -149,63 +204,36 @@ export function useDocumentWorkspace() {
     finally { end(); }
   }
 
-  const saveDocument = useCallback(async (saveAs = false): Promise<boolean> => {
+  const saveDocument = useCallback(async (): Promise<boolean> => {
     if (readingRef.current || !begin()) return false;
+    const started = docRef.current, root = workspaceRef.current;
     try {
       if (!isDesktop()) {
         setNotice("파일 저장은 데스크톱 앱에서 사용할 수 있습니다.");
         return false;
       }
       const current = docRef.current;
-      let path = current.path;
-      if (!path || saveAs) {
-        const picked = await save({
-          title: "Markdown 문서 저장",
-          defaultPath:
-            path ??
-            (workspaceRef.current
-              ? `${workspaceRef.current.path}/이름 없는 문서.md`
-              : documentName(path)),
-          filters,
-        });
-        if (!picked) return false;
-        path = /\.(md|markdown|mdown)$/i.test(picked) ? picked : `${picked}.md`;
-        if (path !== current.path) {
-          const revision = await documentRevision(path);
-          if (revision) {
-            setOverwrite({ path, revision });
-            return false;
-          }
-          return await persist(path, null);
-        }
-      }
-      return await persist(path, current.revision);
+      return current.path ? await persist(current.path, current.revision) : await createOrDuplicate("create");
     } catch (cause) {
-      setError(errorMessage(cause));
+      if (currentRequest(started, root)) setError(errorMessage(cause));
       return false;
     } finally {
       end();
     }
   }, []);
 
-  async function confirmOverwrite() {
-    if (!overwrite || !begin()) return;
+  const duplicateDocument = useCallback(async () => {
+    if (!isDesktop() || !begin()) return false;
+    const started = docRef.current, root = workspaceRef.current;
     try {
-      await persist(overwrite.path, overwrite.revision);
-      setOverwrite(null);
-      if (pending) {
-        const action = pending;
-        setPending(null);
-        end();
-        await execute(action);
-      }
+      return await createOrDuplicate("duplicate");
     } catch (cause) {
-      setError(errorMessage(cause));
-      setOverwrite(null);
+      if (currentRequest(started, root)) setError(errorMessage(cause));
+      return false;
     } finally {
       end();
     }
-  }
+  }, []);
 
   const execute = useCallback(async (action: Action) => {
     if (!begin()) return;
@@ -369,10 +397,10 @@ export function useDocumentWorkspace() {
     return () => { disposed = true; stop?.(); };
   }, []);
   useEffect(() => {
-    if (!incomingLink || !workspace || busy || pending || overwrite) return;
+    if (!incomingLink || !workspace || busy || pending) return;
     request({ type: "permalink", path: incomingLink });
     setIncomingLink(null);
-  }, [incomingLink, workspace, busy, pending, overwrite, request]);
+  }, [incomingLink, workspace, busy, pending, request]);
 
   useEffect(() => {
     const onFocus = () => {
@@ -400,7 +428,6 @@ export function useDocumentWorkspace() {
         if (event.key === "Escape" && !busyRef.current) {
           event.preventDefault();
           setPending(null);
-          setOverwrite(null);
         }
         if (event.key === "Tab") {
           const buttons = Array.from(
@@ -422,7 +449,8 @@ export function useDocumentWorkspace() {
       if (!(event.metaKey || event.ctrlKey)) return;
       if (event.key.toLowerCase() === "s") {
         event.preventDefault();
-        void saveDocument(event.shiftKey);
+        if (event.shiftKey) void duplicateDocument();
+        else void saveDocument();
       }
       if (event.key.toLowerCase() === "o") {
         event.preventDefault();
@@ -469,7 +497,7 @@ export function useDocumentWorkspace() {
       window.removeEventListener("beforeunload", unload);
       window.removeEventListener("keydown", keys);
     };
-  }, [request, saveDocument]);
+  }, [request, saveDocument, duplicateDocument]);
 
   return {
     document,
@@ -485,13 +513,11 @@ export function useDocumentWorkspace() {
     error,
     notice,
     pending,
-    overwrite,
     change,
     request,
     saveDocument,
+    duplicateDocument,
     resolvePending,
-    confirmOverwrite,
-    cancelOverwrite: () => setOverwrite(null),
     dismissError: () => setError(null),
   };
 }

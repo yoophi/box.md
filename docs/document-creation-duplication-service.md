@@ -19,7 +19,7 @@ worker·requestId fingerprint/최초 결과·응답 drop·root 전환/종료 dra
 
 main 전용 `create_document`는 `{generation, requestId, content}`, `duplicate_document`는 `{generation, requestId, document, expectedRevision, content?}`다. source path는 루트의 상대 경로다. 현재 generation이 아니면 `scopeRevoked`다. blocking executor에서 ticket을 기다리고 native 응답의 document path만 기존 UI의 절대 경로로 변환한다. MCP 공통 결과는 상대 경로를 유지한다. handler·AppManifest·main permission을 함께 등록하고 child WebView는 거부한다.
 
-gh-51 MCP handler는 이 operation을 같은 `DocumentScope::submit_mutation`에 연결해야 한다. 현재 MCP 도구가 구현된 것은 아니다. gh-67은 native API를 사용하고 다른 이름 저장을 제거하며 요청 시작의 generation/document와 늦은 응답·root 전환에 대한 dirty/undo 보호를 적용해야 한다. 현재 frontend는 아직 교체 전이다.
+gh-51 MCP handler는 이 operation을 같은 `DocumentScope::submit_mutation`에 연결해야 한다. 현재 MCP 도구가 구현된 것은 아니다. gh-67에서 [UI 연동](document-creation-duplication-ui.md), 다른 이름 저장 제거, generation/document 및 늦은 응답·root 전환의 편집기 보호를 구현·검증했다. 부모 기준 감사는 gh-68에 유지한다.
 
 ## 검증
 

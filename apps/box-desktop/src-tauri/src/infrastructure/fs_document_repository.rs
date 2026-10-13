@@ -80,7 +80,7 @@ impl DocumentRepository for FsDocumentRepository {
         if revision(&path)?.as_deref() != expected_revision {
             return Err(DocumentError::new(
                 "conflict",
-                "파일이 외부에서 변경되었습니다. 다시 불러오거나 다른 이름으로 저장해주세요.",
+                "파일이 외부에서 변경되었습니다. 현재 편집 내용을 보존한 뒤 변경된 원문을 확인해주세요.",
             ));
         }
         let mut temporary =

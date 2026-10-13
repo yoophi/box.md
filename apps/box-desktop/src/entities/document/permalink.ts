@@ -13,10 +13,19 @@ export function permalinkFromLink(link: string): string {
     throw new Error("고정 링크 값이 올바르지 않습니다.");
   return values[0];
 }
+export function newPermalink(): string {
+  const now = new Date();
+  const date = [now.getFullYear() % 100, now.getMonth() + 1, now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds()]
+    .map((n) => String(n).padStart(2, "0")).join("");
+  const random = crypto.getRandomValues(new Uint8Array(4));
+  return `${date}-${Array.from(random, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
 export function withDocumentPermalink(content: string): string {
+  let existing: string;
   try {
-    return documentProperty(content, "permalink") ? content : setDocumentProperty(content, "permalink", crypto.randomUUID());
+    existing = documentProperty(content, "permalink");
   } catch { return content; } // Invalid YAML remains editable and saveable in source mode.
+  return existing ? content : setDocumentProperty(content, "permalink", newPermalink());
 }
 async function documentIndex(files: WorkspaceDocument[], read: (path: string) => Promise<DocumentSnapshot>) {
   const index = new Map<string, DocumentSnapshot[]>();
