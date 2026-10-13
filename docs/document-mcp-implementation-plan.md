@@ -30,6 +30,8 @@ AW에도 [공유 호스트 계획](https://github.com/yoophi/agentic-workspace/b
 
 ## 문서 도구 계약
 
+gh-64 생성·복제 기능은 서비스 `2aed2ec`, UI `7aa9437`, 최종 감사 `43bfe8e`와 완료 기록 `2366897`로 구현·검증했다. gh-51을 gh-69(문서 도구) → gh-70(본문 링크·독립 연결) → gh-71(전체 실제 HTTP 감사) 하위 task로 나누고 순차 진행한다. [도구 구현 계획](document-mcp-tool-plan.md)은 실제 AW host SPI, 인증 principal과 같은 DocumentScope/mutation registry 재사용 경계를 기록한다. 도구 구현과 native grant/실제 ACP 후속 검증은 아직 완료 판정하지 않는다.
+
 도구명은 아래 계약으로 고정하고 구현 시 JSON Schema와 runtime validation을 함께 제공한다. 고정 필드의 계약 객체는 지정하지 않은 필드를 거부한다. 사용자 metadata와 patch 객체는 유효한 사용자 key를 허용한다. 경로는 루트 상대 경로이며 절대 경로를 입출력으로 사용하지 않는다.
 
 `DocumentRef`는 `{permalink: string}` 또는 `{path: string}` 중 하나다. permalink 조회는 매 요청 현재 저장소에서 정확히 한 문서를 찾는다. 중복이면 임의 파일을 선택하지 않는다. path 참조는 아직 permalink가 없는 기존 문서를 다룰 수 있게 하며 permalink 참조 지원을 대체하지 않는다.
