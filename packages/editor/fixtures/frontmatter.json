@@ -1,0 +1,308 @@
+[
+  {
+    "name": "summary keeps permalink and nested values",
+    "source": "---\npermalink: stable\nextra: {a: 2}\n---\nbody\n",
+    "key": "summary",
+    "value": "true",
+    "reads": {
+      "summary": "true",
+      "permalink": "stable"
+    },
+    "metadata": {
+      "extra": {
+        "a": 2
+      }
+    },
+    "suffix": "---\nbody\n"
+  },
+  {
+    "name": "new permalink keeps Unicode body",
+    "source": "\n# 문서\n\n원문 🌱  \n",
+    "key": "permalink",
+    "value": "/notes/생각",
+    "reads": {
+      "permalink": "/notes/생각"
+    },
+    "suffix": "---\n\n# 문서\n\n원문 🌱  \n"
+  },
+  {
+    "name": "BOM CRLF comments and unknown mapping",
+    "source": "﻿---\r\n# 속성 메모\r\nsummary: 기존 요약\r\ntags: [a, b]\r\ncustom: {count: 2, enabled: true}\r\npermalink: /old\r\n...\r\n\r\n# 본문\r\n  그대로\r\n",
+    "key": "permalink",
+    "value": "true",
+    "reads": {
+      "permalink": "true",
+      "summary": "기존 요약"
+    },
+    "metadata": {
+      "custom": {
+        "count": 2,
+        "enabled": true
+      },
+      "tags": [
+        "a",
+        "b"
+      ]
+    },
+    "comments": [
+      "# 속성 메모\r\n"
+    ],
+    "suffix": "...\r\n\r\n# 본문\r\n  그대로\r\n"
+  },
+  {
+    "name": "empty header adds string date",
+    "source": "---\n---\nbody",
+    "key": "permalink",
+    "value": "2026-01-01",
+    "reads": {
+      "permalink": "2026-01-01"
+    },
+    "suffix": "---\nbody"
+  },
+  {
+    "name": "malformed flow fails",
+    "source": "---\nkey: [\n---\nbody",
+    "key": "permalink",
+    "value": "/new",
+    "error": true
+  },
+  {
+    "name": "duplicate key fails",
+    "source": "---\npermalink: a\npermalink: b\n---\nbody",
+    "key": "permalink",
+    "value": "/new",
+    "error": true
+  },
+  {
+    "name": "unclosed header fails",
+    "source": "---\nkey: a\nbody",
+    "key": "permalink",
+    "value": "/new",
+    "error": true
+  },
+  {
+    "name": "multiline input fails",
+    "source": "body",
+    "key": "summary",
+    "value": "a\nb",
+    "error": true
+  },
+  {
+    "name": "nested duplicate fails",
+    "source": "---\nextra: {a: 1, a: 2}\n---\nbody",
+    "key": "summary",
+    "value": "hello",
+    "error": true
+  },
+  {
+    "name": "non mapping root fails",
+    "source": "---\n- a\n- b\n---\nbody",
+    "key": "summary",
+    "value": "hello",
+    "error": true
+  },
+  {
+    "name": "null property reads empty",
+    "source": "---\nsummary: null\npermalink: stable\n---\nbody",
+    "readOnly": true,
+    "reads": {
+      "summary": "",
+      "permalink": "stable"
+    }
+  },
+  {
+    "name": "boolean property fails string read",
+    "source": "---\nsummary: true\n---\nbody",
+    "readOnly": true,
+    "readErrors": [
+      "summary"
+    ]
+  },
+  {
+    "name": "numeric property fails string read",
+    "source": "---\npermalink: 123\n---\nbody",
+    "readOnly": true,
+    "readErrors": [
+      "permalink"
+    ]
+  },
+  {
+    "name": "explicit string tag remains string",
+    "source": "---\nsummary: !!str 123\n---\nbody",
+    "readOnly": true,
+    "reads": {
+      "summary": "123"
+    }
+  },
+  {
+    "name": "remove keeps other properties",
+    "source": "---\nsummary: old\npermalink: stable\n---\nbody  \n",
+    "key": "summary",
+    "value": "",
+    "reads": {
+      "summary": "",
+      "permalink": "stable"
+    },
+    "suffix": "---\nbody  \n"
+  },
+  {
+    "name": "remove without header is identity",
+    "source": "﻿# Original\r\n  spaces  \r\n",
+    "key": "summary",
+    "value": "",
+    "reads": {
+      "summary": ""
+    },
+    "exact": "﻿# Original\r\n  spaces  \r\n"
+  },
+  {
+    "name": "whitespace value is a string",
+    "source": "---\npermalink: stable\n---\nbody",
+    "key": "summary",
+    "value": "  ",
+    "reads": {
+      "summary": "  "
+    },
+    "suffix": "---\nbody"
+  },
+  {
+    "name": "closing delimiter at EOF",
+    "source": "--- \t\r\nsummary: old\r\n...\t",
+    "key": "summary",
+    "value": "null",
+    "reads": {
+      "summary": "null"
+    },
+    "suffix": "...\t"
+  },
+  {
+    "name": "unmodified anchors and aliases survive",
+    "source": "---\nextra: &details {count: 2}\ncopy: *details\nsummary: old\n---\nbody",
+    "key": "summary",
+    "value": "new",
+    "reads": {
+      "summary": "new"
+    },
+    "metadata": {
+      "extra": {
+        "count": 2
+      },
+      "copy": {
+        "count": 2
+      }
+    },
+    "suffix": "---\nbody"
+  },
+  {
+    "name": "quoted duplicate key fails",
+    "source": "---\nsummary: old\n\"summary\": duplicate\n---\nbody",
+    "key": "summary",
+    "value": "new",
+    "error": true
+  },
+  {
+    "name": "leading zero core integer",
+    "source": "---\nsummary: 0755\n---\nbody",
+    "readOnly": true,
+    "readErrors": [
+      "summary"
+    ]
+  },
+  {
+    "name": "binary looking string",
+    "source": "---\nsummary: 0b10\n---\nbody",
+    "readOnly": true,
+    "reads": {
+      "summary": "0b10"
+    }
+  },
+  {
+    "name": "signed radix looking string",
+    "source": "---\nsummary: -0x10\n---\nbody",
+    "readOnly": true,
+    "reads": {
+      "summary": "-0x10"
+    }
+  },
+  {
+    "name": "underscore looking string",
+    "source": "---\nsummary: 1_000\n---\nbody",
+    "readOnly": true,
+    "reads": {
+      "summary": "1_000"
+    }
+  },
+  {
+    "name": "mixed case nan looking string",
+    "source": "---\nsummary: .nAn\n---\nbody",
+    "readOnly": true,
+    "reads": {
+      "summary": ".nAn"
+    }
+  },
+  {
+    "name": "non specific string tag",
+    "source": "---\nsummary: ! true\n---\nbody",
+    "readOnly": true,
+    "reads": {
+      "summary": "true"
+    }
+  },
+  {
+    "name": "alias property follows TS node getter",
+    "source": "---\nsource: &s old\nsummary: *s\n---\nbody",
+    "readOnly": true,
+    "readErrors": [
+      "summary"
+    ]
+  },
+  {
+    "name": "unknown scalar tag follows TS string getter",
+    "source": "---\nsummary: !custom true\n---\nbody",
+    "readOnly": true,
+    "reads": {
+      "summary": "true"
+    }
+  },
+  {
+    "name": "string key beside numeric keys",
+    "source": "---\n1: original\n0755: original\n---\nbody",
+    "key": "1",
+    "value": "new",
+    "reads": {
+      "1": "new"
+    },
+    "suffix": "---\nbody"
+  },
+  {
+    "name": "indented root preserves metadata",
+    "source": "---\n  custom: {a: 1}\n---\nbody",
+    "key": "summary",
+    "value": "new",
+    "reads": {
+      "summary": "new"
+    },
+    "metadata": {
+      "custom": {
+        "a": 1
+      }
+    },
+    "suffix": "---\nbody"
+  },
+  {
+    "name": "flow trailing comma add",
+    "source": "---\n{custom: [a, b],}\n---\nbody",
+    "key": "summary",
+    "value": "true",
+    "reads": {
+      "summary": "true"
+    },
+    "metadata": {
+      "custom": [
+        "a",
+        "b"
+      ]
+    },
+    "suffix": "---\nbody"
+  }
+]

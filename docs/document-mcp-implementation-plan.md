@@ -10,7 +10,7 @@
 | AW [MCP 서버](../vendor/agentic-workspace/crates/workbench-host/src/mcp/mod.rs) | `WorkbenchRuntime`과 전용 도구 dispatch에 결합돼 있다. Box handler를 받는 별도 공용 HTTP 호스트를 AW에 추가한다. |
 | Box [DocumentService](../apps/box-desktop/src-tauri/src/application/document_service.rs) | 원자 파일 저장, revision 비교, 저장 이력을 UI와 MCP가 같은 application 경로에서 사용한다. 목록·삭제·metadata·scope 기능을 확장한다. |
 | [FsDocumentRepository](../apps/box-desktop/src-tauri/src/infrastructure/fs_document_repository.rs) | 절대 경로 Markdown 저장소다. MCP 인자를 직접 전달하지 않는다. 현재 루트에 고정된 filesystem port/adapter를 마련한다. |
-| [frontmatter 편집](../packages/editor/src/metadata.ts) | TypeScript에만 있다. 서버측 구현도 BOM, CRLF, 주석, 알 수 없는 YAML 값과 본문 보존을 같은 fixture로 검증한다. |
+| [frontmatter 편집](../packages/editor/src/metadata.ts) | gh-55에서 [Rust adapter](frontmatter-rust-adapter.md)를 구현했다. 31개 공통 fixture로 문자열 계약과 본문 보존을 확인하며, gh-56에서 application에 통합한다. |
 | [문서 workspace 상태](../apps/box-desktop/src/features/manage-document/model/use-document-workspace.ts) | focus 시 목록 갱신만으로 외부 내용 변경 반영을 증명할 수 없다. 변경 이벤트, revision 재조회와 dirty 충돌 처리가 필요하다. |
 
 ## AW 공용 라이브러리 계획

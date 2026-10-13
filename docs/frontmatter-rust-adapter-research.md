@@ -88,3 +88,7 @@ YAML mapping key는 scalar뿐 아니라 sequence/mapping일 수도 있고 alias�
 | JSON 경계 | int 최대·초과, 2^53 경계, exponent, nonfinite, non-string/complex key, cyclic graph | 명시한 JSON 변환 정책; overflow·precision 손실·key 충돌의 silent 처리 금지 |
 
 fixture에는 original Markdown, operation, expected metadata/property, expected error category, expected suffix bytes와 보존해야 할 header span을 함께 저장한다. quoting 전체 equality는 canonical 새 header 같은 제한된 사례에서만 사용한다. **이 조사 완료는 adapter 구현 완료 또는 production 검증 통과를 뜻하지 않는다.**
+
+## gh-55 실제 채택 검증 후속
+
+gh-55에서 yaml-rt-core 0.3.2를 채택하고 [순수 Rust adapter 및 실제 검증 결과](frontmatter-rust-adapter.md)를 작성했다. 조사 시점의 후보 판단과 실제 실행 결과는 구별한다. 31개 TS/Rust 공통 fixture와 추가 테스트에서 scalar equality·core 숫자 문법·key lookup·scalar style/tag·indented root 보완이 필요함을 확인했고, adapter가 이를 처리한다. 원문 CST 위치와 lexer token을 사용하며 전체 YAML 재직렬화는 하지 않는다. MSRV는 1.96으로 선언하고 로컬 1.99로 검증한다. application/MCP/native 연결 완료를 뜻하지 않는다.

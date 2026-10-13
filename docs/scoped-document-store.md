@@ -47,7 +47,7 @@ cargo fmt --all -- --check
 CARGO_INCREMENTAL=0 cargo check --workspace --all-targets
 ```
 
-실행 환경은 macOS arm64와 로컬 Rust 1.99다. 이 crate의 선언 MSRV 1.89는 `std::fs::File::lock`을 반영한다. 해당 구버전 toolchain 및 다른 OS의 실행 검증은 수행하지 않았다. native 화면·ACP agent 검증은 이 저장소 테스트의 범위에 포함하지 않는다.
+실행 환경은 macOS arm64와 로컬 Rust 1.99다. gh-54 당시 MSRV 1.89는 `std::fs::File::lock`을 반영했다. gh-55에서 YAML dependency를 추가하며 현재 crate MSRV를 1.96으로 올렸다. [metadata adapter 계약](frontmatter-rust-adapter.md)을 참고한다. 해당 구버전 toolchain 및 다른 OS의 실행 검증은 수행하지 않았다. native 화면·ACP agent 검증은 이 저장소 테스트의 범위에 포함하지 않는다.
 
 `cargo test --workspace`도 시도했으나 vendored AW 통합 테스트 실행 파일을 빌드하는 중 디스크 공간 부족으로 중단됐다. 전체 workspace 테스트가 통과했다고 주장하지 않는다. 위 두 package 검증으로 변경한 저장소와 기존 Box application의 저장·이력 동작을 실행 검증하며, 전체 target 컴파일은 별도 기본 검사로 수행한다.
 
