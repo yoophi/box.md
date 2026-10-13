@@ -27,6 +27,6 @@ scope의 gate는 accepting 상태와 진행 중인 호출 수를 같은 mutex로
 
 기존 테스트는 실패한 루트 선택의 기존 generation 유지, root pinning, native/scoped CAS 및 공유 이력 회귀를 계속 검사한다. 이 테스트는 실제 macOS 종료 화면이나 설치 agent HTTP 사용 검증을 대신하지 않는다.
 
-gh-63에서 응답 수신자가 버려져도 permit를 서버 소유 mutation이 보유하도록 연결하고 fingerprint/최초 결과/capacity를 구현한다. MCP/HTTP는 gh-51, grant와 ACP·UI 이벤트는 gh-52, 실제 앱/agent 사용 검증은 gh-53, 전체 application 감사는 gh-57에 남아 있다.
+gh-63의 [mutation 수명](document-mutation-lifecycle.md)은 응답 수신자가 버려져도 permit를 서버 소유 mutation이 보유하도록 연결하고 fingerprint/최초 결과/capacity를 제공한다. MCP/HTTP는 gh-51, grant와 ACP·UI 이벤트는 gh-52, 실제 앱/agent 사용 검증은 gh-53, 전체 application 감사는 gh-57에 남아 있다.
 
 최종 검증은 `cargo test -p box-desktop --lib`의 47개 통과(helper 1개 ignored 및 subprocess 실행 3개 통과), `pnpm check-types`, `pnpm build`, `cargo fmt --all -- --check`, `cargo check --workspace --all-targets` 통과다. 아직 연결하지 않은 scoped API의 dead-code 경고 13개와 기존 AW 경고는 남아 있다. 로그는 `/tmp/box-md-gh62-{native-tests,types,build,fmt,rust}.log`에 기록했다. 실행 중인 앱 번들은 재빌드하지 않았다.

@@ -62,7 +62,7 @@ impl DocumentScopeFactory for BlockingFactory {
         self.inner.native_path(path)
     }
 }
-fn manager(history: &Path) -> (DocumentWorkspace, mpsc::Receiver<()>, Arc<Barrier>) {
+pub(super) fn manager(history: &Path) -> (DocumentWorkspace, mpsc::Receiver<()>, Arc<Barrier>) {
     let (entered, rx) = mpsc::sync_channel(1);
     let release = Arc::new(Barrier::new(2));
     let manager = DocumentWorkspace::new(

@@ -23,7 +23,7 @@ fn argument(message: &str) -> DocumentError {
 fn optional(value: String) -> Option<String> {
     (!value.is_empty()).then_some(value)
 }
-fn properties(content: &str) -> Result<(Option<String>, Option<String>), DocumentError> {
+pub(super) fn properties(content: &str) -> Result<(Option<String>, Option<String>), DocumentError> {
     let permalink = document_property(content, "permalink")?;
     let summary = document_property(content, "summary")?;
     if permalink.contains(['\r', '\n']) || summary.contains(['\r', '\n']) {
@@ -34,14 +34,14 @@ fn properties(content: &str) -> Result<(Option<String>, Option<String>), Documen
     }
     Ok((optional(permalink), optional(summary)))
 }
-fn scoped(document: DocumentSnapshot) -> Result<ScopedDocument, DocumentError> {
+pub(super) fn scoped(document: DocumentSnapshot) -> Result<ScopedDocument, DocumentError> {
     let (permalink, _) = properties(&document.content)?;
     Ok(ScopedDocument {
         document,
         permalink,
     })
 }
-fn metadata(document: &DocumentSnapshot) -> Result<MetadataSnapshot, DocumentError> {
+pub(super) fn metadata(document: &DocumentSnapshot) -> Result<MetadataSnapshot, DocumentError> {
     let (permalink, summary) = properties(&document.content)?;
     Ok(MetadataSnapshot {
         path: document.path.clone(),
@@ -115,7 +115,7 @@ impl Index {
     }
 }
 impl DocumentStore {
-    fn scoped_repository(&self) -> Result<&dyn ScopedDocumentRepository, DocumentError> {
+    pub(super) fn scoped_repository(&self) -> Result<&dyn ScopedDocumentRepository, DocumentError> {
         self.scoped.as_deref().ok_or_else(|| {
             DocumentError::new("workspaceUnavailable", "작업 디렉터리를 선택해주세요.")
         })
@@ -264,12 +264,15 @@ impl DocumentStore {
         }
         Ok(())
     }
-    fn record(&self, document: &mut DocumentSnapshot) {
+    pub(super) fn record(&self, document: &mut DocumentSnapshot) {
         if let Err(error) = self.history.record(&document.path, &document.content) {
             document.history_warning = Some(error.message);
         }
     }
-    fn read_reference(&self, reference: &DocumentRef) -> Result<DocumentSnapshot, DocumentError> {
+    pub(super) fn read_reference(
+        &self,
+        reference: &DocumentRef,
+    ) -> Result<DocumentSnapshot, DocumentError> {
         let document = self.repository.read(&self.resolve(reference)?)?;
         if let DocumentRef::Permalink { permalink } = reference {
             if properties(&document.content)?.0.as_ref() != Some(permalink) {

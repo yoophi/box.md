@@ -133,7 +133,7 @@ gh-56은 기존 gh-55와 마지막 하위 작업 gh-60에 의존한다. gh-50의
 
 gh-59의 [scoped 문서 application](scoped-document-application.md)은 같은 service 잠금에서 path/permalink 조회, 목록·검색/cursor, UUID 생성, metadata patch, CAS와 복구 삭제를 제공한다. 파일 목록의 불완전성을 경고하고 ID 고유성을 확인할 수 없는 쓰기는 거부한다. mutation 재시도·task 소유·drain은 gh-60에 유지한다.
 
-gh-60은 gh-62([scope admission 및 루트 전환/종료 drain](document-scope-lifecycle.md)) → gh-63(requestId registry, 서버 소유 mutation, count/byte capacity)으로 진행한다. gh-63은 gh-62에 의존하며 각 단위별 검증·커밋을 진행한다.
+gh-60은 gh-62([scope admission 및 루트 전환/종료 drain](document-scope-lifecycle.md)) → gh-63([requestId registry, 서버 소유 mutation, count/byte capacity](document-mutation-lifecycle.md))으로 진행한다. gh-63은 gh-62에 의존하며 각 단위별 검증·커밋을 진행한다.
 
 ## gh-48 설계 단위 검증
 

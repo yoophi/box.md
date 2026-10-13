@@ -1,3 +1,4 @@
+use super::document_mutations::{DocumentMutation, MutationRegistry, MutationTicket};
 use super::document_service::DocumentService;
 use super::scope_admission::{revoked, ScopeAdmission};
 use crate::{
@@ -23,6 +24,7 @@ pub struct DocumentScope {
     pub generation: String,
     storage: DocumentScopeStorage,
     admission: Arc<ScopeAdmission>,
+    mutations: Arc<MutationRegistry>,
 }
 
 #[cfg(test)]
@@ -253,6 +255,18 @@ mod tests {
     }
 }
 impl DocumentScope {
+    pub fn submit_mutation(
+        &self,
+        request_id: &str,
+        mutation: DocumentMutation,
+    ) -> Result<MutationTicket, DocumentError> {
+        self.mutations.submit(
+            request_id,
+            mutation,
+            self.storage.service.clone(),
+            self.admission.admit()?,
+        )
+    }
     fn admitted<T>(
         &self,
         f: impl FnOnce(&DocumentService) -> Result<T, DocumentError>,
@@ -467,6 +481,7 @@ impl DocumentWorkspace {
             generation: uuid::Uuid::new_v4().to_string(),
             storage: self.factory.open(path)?,
             admission: ScopeAdmission::new(),
+            mutations: MutationRegistry::new(),
         });
         let listing = scope.native_snapshot()?;
         // Keep the current-root mutex until the old generation has drained.
@@ -572,3 +587,7 @@ impl Drop for DocumentWorkspace {
 #[cfg(test)]
 #[path = "document_workspace_lifecycle_tests.rs"]
 mod lifecycle_tests;
+
+#[cfg(test)]
+#[path = "document_mutation_tests.rs"]
+mod mutation_tests;

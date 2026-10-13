@@ -13,6 +13,43 @@ fn repository(root: &TempDir) -> ScopedFsDocumentRepository {
 }
 
 #[test]
+fn checked_restore_rejects_changed_prepared_path_or_revision_before_publication() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = repository(&root);
+    let original = repo.save("note.md", "original", None).unwrap();
+    let deleted = repo.trash(&original.path, &original.revision).unwrap();
+    let inspected = repo.read_trash(&deleted.trash_id).unwrap();
+    let slot = root.path().join(".box.md/trash").join(&deleted.trash_id);
+    let manifest_path = slot.join("manifest.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["path"] = serde_json::json!("other.md");
+    fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    assert_eq!(
+        repo.restore_checked(&deleted.trash_id, &inspected.path, &inspected.revision)
+            .unwrap_err()
+            .code,
+        "conflict"
+    );
+    assert!(!root.path().join("note.md").exists());
+    assert!(!root.path().join("other.md").exists());
+    manifest["path"] = serde_json::json!(inspected.path);
+    let replacement = repo.save("temporary.md", "replacement", None).unwrap();
+    fs::remove_file(root.path().join("temporary.md")).unwrap();
+    manifest["revision"] = serde_json::json!(replacement.revision);
+    fs::write(slot.join("document.md"), replacement.content).unwrap();
+    fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    assert_eq!(
+        repo.restore_checked(&deleted.trash_id, &inspected.path, &inspected.revision)
+            .unwrap_err()
+            .code,
+        "conflict"
+    );
+    assert!(!root.path().join("note.md").exists());
+    assert!(slot.join("document.md").exists());
+}
+
+#[test]
 fn unicode_nested_listing_and_reading() {
     let root = tempfile::tempdir().unwrap();
     for dir in ["한글/문서", ".hidden", "node_modules", "target", ".box.md"] {

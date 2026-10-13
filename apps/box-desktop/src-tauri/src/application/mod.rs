@@ -1,5 +1,7 @@
+pub mod document_mutations;
 pub mod document_service;
 pub mod document_workspace;
+mod prepared_mutations;
 mod scope_admission;
 mod scoped_documents;
 pub mod workspace_service;

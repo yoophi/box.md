@@ -8,4 +8,4 @@ pub use frontmatter::{
     document_metadata, document_property, patch_document_metadata, set_document_property,
 };
 pub use ports::{DocumentRepository, ScopedDocumentRepository};
-pub use scoped_fs::ScopedFsDocumentRepository;
+pub use scoped_fs::{ScopedFsDocumentRepository, validate_relative_document_path};

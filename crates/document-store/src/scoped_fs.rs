@@ -76,6 +76,10 @@ fn validate(path: &str) -> Result<Vec<&str>, DocumentError> {
     }
     Ok(parts)
 }
+/// Pure path validation shared by scoped request admission and filesystem access.
+pub fn validate_relative_document_path(path: &str) -> Result<(), DocumentError> {
+    validate(path).map(|_| ())
+}
 fn options(read: bool, write: bool, create_new: bool) -> OpenOptions {
     let mut options = OpenOptions::new();
     options
@@ -265,6 +269,31 @@ impl ScopedFsDocumentRepository {
         Ok((slot, document))
     }
 }
+impl ScopedFsDocumentRepository {
+    fn restore_snapshot(
+        &self,
+        id: &str,
+        expected: Option<(&str, &str)>,
+    ) -> Result<DocumentSnapshot, DocumentError> {
+        uuid::Uuid::parse_str(id)
+            .map_err(|_| DocumentError::new("invalidArguments", "복구 ID가 올바르지 않습니다."))?;
+        let _guard = self.guard()?;
+        let _lock = self.lock_file()?;
+        let (slot, document) = self.retained(id)?;
+        if expected
+            .is_some_and(|(path, revision)| path != document.path || revision != document.revision)
+        {
+            return Err(conflict());
+        }
+        let (dir, name) = self.parent(&document.path)?;
+        slot.hard_link("document.md", &dir, name).map_err(error)?;
+        // Publication already succeeded. A leftover recovery copy must not
+        // report a failed restore or cause callers to retry the publication.
+        let _ = slot.remove_file("document.md");
+        Ok(document)
+    }
+}
+
 impl DocumentRepository for ScopedFsDocumentRepository {
     fn read(&self, path: &str) -> Result<DocumentSnapshot, DocumentError> {
         let (dir, name) = self.parent(path)?;
@@ -447,16 +476,14 @@ impl ScopedDocumentRepository for ScopedFsDocumentRepository {
         self.retained(id).map(|(_, document)| document)
     }
     fn restore(&self, id: &str) -> Result<DocumentSnapshot, DocumentError> {
-        uuid::Uuid::parse_str(id)
-            .map_err(|_| DocumentError::new("invalidArguments", "복구 ID가 올바르지 않습니다."))?;
-        let _guard = self.guard()?;
-        let _lock = self.lock_file()?;
-        let (slot, document) = self.retained(id)?;
-        let (dir, name) = self.parent(&document.path)?;
-        slot.hard_link("document.md", &dir, name).map_err(error)?;
-        // Publication already succeeded. A leftover recovery copy must not
-        // report a failed restore or cause callers to retry the publication.
-        let _ = slot.remove_file("document.md");
-        Ok(document)
+        self.restore_snapshot(id, None)
+    }
+    fn restore_checked(
+        &self,
+        id: &str,
+        path: &str,
+        revision: &str,
+    ) -> Result<DocumentSnapshot, DocumentError> {
+        self.restore_snapshot(id, Some((path, revision)))
     }
 }

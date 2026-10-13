@@ -19,4 +19,11 @@ pub trait ScopedDocumentRepository: DocumentRepository {
     /// Inspect retained bytes without publishing them or changing the store.
     fn read_trash(&self, trash_id: &str) -> Result<DocumentSnapshot, DocumentError>;
     fn restore(&self, trash_id: &str) -> Result<DocumentSnapshot, DocumentError>;
+    /// Publish only the retained snapshot that was inspected during preparation.
+    fn restore_checked(
+        &self,
+        trash_id: &str,
+        path: &str,
+        revision: &str,
+    ) -> Result<DocumentSnapshot, DocumentError>;
 }
