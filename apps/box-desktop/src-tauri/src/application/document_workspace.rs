@@ -3,6 +3,9 @@ use crate::{
     domain::{
         document::{DocumentError, DocumentSnapshot},
         history::HistoryEntry,
+        scoped_document::{
+            DocumentPage, DocumentRef, MetadataSnapshot, ScopedDocument, SearchPage,
+        },
         workspace::{WorkspaceDocument, WorkspaceSnapshot},
     },
     ports::document_scope_factory::{DocumentScopeFactory, DocumentScopeStorage},
@@ -275,6 +278,64 @@ impl DocumentScope {
         expected: Option<&str>,
     ) -> Result<DocumentSnapshot, DocumentError> {
         self.admitted(|s| s.save(path, content, expected))
+    }
+    pub fn list_documents(
+        &self,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<DocumentPage, DocumentError> {
+        self.admitted(|s| s.list_documents(&self.generation, cursor, limit))
+    }
+    pub fn search_documents(
+        &self,
+        query: &str,
+        cursor: Option<&str>,
+        limit: Option<usize>,
+    ) -> Result<SearchPage, DocumentError> {
+        self.admitted(|s| s.search_documents(&self.generation, query, cursor, limit))
+    }
+    pub fn read_document(&self, reference: &DocumentRef) -> Result<ScopedDocument, DocumentError> {
+        self.admitted(|s| s.read_document(reference))
+    }
+    pub fn document_permalink(&self, reference: &DocumentRef) -> Result<String, DocumentError> {
+        self.admitted(|s| s.document_permalink(reference))
+    }
+    pub fn get_metadata(&self, reference: &DocumentRef) -> Result<MetadataSnapshot, DocumentError> {
+        self.admitted(|s| s.get_metadata(reference))
+    }
+    pub fn create_document(
+        &self,
+        path: &str,
+        content: &str,
+    ) -> Result<ScopedDocument, DocumentError> {
+        self.admitted(|s| s.create_document(path, content))
+    }
+    pub fn update_document(
+        &self,
+        reference: &DocumentRef,
+        content: &str,
+        expected: &str,
+    ) -> Result<ScopedDocument, DocumentError> {
+        self.admitted(|s| s.update_document(reference, content, expected))
+    }
+    pub fn update_metadata(
+        &self,
+        reference: &DocumentRef,
+        patch: &serde_json::Map<String, serde_json::Value>,
+        remove: &[String],
+        expected: &str,
+    ) -> Result<(ScopedDocument, MetadataSnapshot), DocumentError> {
+        self.admitted(|s| s.update_metadata(reference, patch, remove, expected))
+    }
+    pub fn delete_document(
+        &self,
+        reference: &DocumentRef,
+        expected: &str,
+    ) -> Result<box_document_store::TrashSnapshot, DocumentError> {
+        self.admitted(|s| s.delete_document(reference, expected))
+    }
+    pub fn restore_document(&self, trash_id: &str) -> Result<ScopedDocument, DocumentError> {
+        self.admitted(|s| s.restore_document(trash_id))
     }
     fn history(&self, path: &str) -> Result<Vec<HistoryEntry>, DocumentError> {
         self.admitted(|s| s.history(path))

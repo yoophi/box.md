@@ -16,5 +16,7 @@ pub trait DocumentRepository: Send + Sync {
 pub trait ScopedDocumentRepository: DocumentRepository {
     fn list(&self) -> Result<ScopedListing, DocumentError>;
     fn trash(&self, path: &str, expected_revision: &str) -> Result<TrashSnapshot, DocumentError>;
+    /// Inspect retained bytes without publishing them or changing the store.
+    fn read_trash(&self, trash_id: &str) -> Result<DocumentSnapshot, DocumentError>;
     fn restore(&self, trash_id: &str) -> Result<DocumentSnapshot, DocumentError>;
 }

@@ -1,5 +1,6 @@
 pub mod document_service;
 pub mod document_workspace;
+mod scoped_documents;
 pub mod workspace_service;
 use crate::{domain::AppInfo, ports::AppInfoProvider};
 

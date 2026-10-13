@@ -1,4 +1,5 @@
 pub mod document;
+pub mod scoped_document;
 pub mod workspace;
 use serde::Serialize;
 

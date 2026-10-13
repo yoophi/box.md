@@ -8,10 +8,10 @@ use crate::{
 use box_document_store::{ScopedDocumentRepository, ScopedListing};
 use std::sync::{Arc, Mutex};
 
-struct DocumentStore {
-    repository: Box<dyn DocumentRepository>,
-    history: Box<dyn DocumentHistory>,
-    scoped: Option<Arc<dyn ScopedDocumentRepository>>,
+pub(super) struct DocumentStore {
+    pub(super) repository: Box<dyn DocumentRepository>,
+    pub(super) history: Box<dyn DocumentHistory>,
+    pub(super) scoped: Option<Arc<dyn ScopedDocumentRepository>>,
 }
 pub struct DocumentService {
     store: Mutex<DocumentStore>,
@@ -48,7 +48,7 @@ impl DocumentService {
             .ok_or_else(|| DocumentError::new("workspaceUnavailable", "작업 루트를 선택해주세요."))?
             .list()
     }
-    fn lock(&self) -> Result<std::sync::MutexGuard<'_, DocumentStore>, DocumentError> {
+    pub(super) fn lock(&self) -> Result<std::sync::MutexGuard<'_, DocumentStore>, DocumentError> {
         self.store
             .lock()
             .map_err(|_| DocumentError::new("internal", "문서 저장소 잠금 오류"))
@@ -72,17 +72,31 @@ impl DocumentService {
         expected_revision: Option<&str>,
     ) -> Result<DocumentSnapshot, DocumentError> {
         let store = self.lock()?;
+        if store.scoped.is_some() {
+            store.validate_candidate(path, content)?;
+        }
+        store.write(path, content, expected_revision)
+    }
+}
+
+impl DocumentStore {
+    pub(super) fn write(
+        &self,
+        path: &str,
+        content: &str,
+        expected_revision: Option<&str>,
+    ) -> Result<DocumentSnapshot, DocumentError> {
         let previous = if expected_revision.is_some() {
-            Some(store.repository.read(path)?)
+            Some(self.repository.read(path)?)
         } else {
             None
         };
-        let mut saved = store.repository.save(path, content, expected_revision)?;
+        let mut saved = self.repository.save(path, content, expected_revision)?;
         let history_result = (|| {
             if let Some(previous) = previous {
-                store.history.record(&saved.path, &previous.content)?;
+                self.history.record(&saved.path, &previous.content)?;
             }
-            store.history.record(&saved.path, &saved.content)
+            self.history.record(&saved.path, &saved.content)
         })();
         if let Err(error) = history_result {
             saved.history_warning = Some(error.message);

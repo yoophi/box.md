@@ -244,6 +244,26 @@ impl ScopedFsDocumentRepository {
     fn trash_dir(&self) -> Result<Dir, DocumentError> {
         Self::internal(&Self::internal(&self.root, ".box.md")?, "trash")
     }
+    fn retained(&self, id: &str) -> Result<(Dir, DocumentSnapshot), DocumentError> {
+        uuid::Uuid::parse_str(id)
+            .map_err(|_| DocumentError::new("invalidArguments", "복구 ID가 올바르지 않습니다."))?;
+        let slot = self
+            .root
+            .open_dir_nofollow(".box.md")
+            .map_err(error)?
+            .open_dir_nofollow("trash")
+            .map_err(error)?
+            .open_dir_nofollow(id)
+            .map_err(error)?;
+        let manifest: TrashManifest = serde_json::from_slice(&bytes(&slot, "manifest.json")?.0)
+            .map_err(|_| DocumentError::new("invalidMetadata", "복구 정보가 올바르지 않습니다."))?;
+        validate(&manifest.path)?;
+        let document = snapshot(&manifest.path, bytes(&slot, "document.md")?.0)?;
+        if document.revision != manifest.revision {
+            return Err(conflict());
+        }
+        Ok((slot, document))
+    }
 }
 impl DocumentRepository for ScopedFsDocumentRepository {
     fn read(&self, path: &str) -> Result<DocumentSnapshot, DocumentError> {
@@ -423,20 +443,16 @@ impl ScopedDocumentRepository for ScopedFsDocumentRepository {
             document,
         })
     }
+    fn read_trash(&self, id: &str) -> Result<DocumentSnapshot, DocumentError> {
+        self.retained(id).map(|(_, document)| document)
+    }
     fn restore(&self, id: &str) -> Result<DocumentSnapshot, DocumentError> {
         uuid::Uuid::parse_str(id)
             .map_err(|_| DocumentError::new("invalidArguments", "복구 ID가 올바르지 않습니다."))?;
         let _guard = self.guard()?;
         let _lock = self.lock_file()?;
-        let slot = self.trash_dir()?.open_dir_nofollow(id).map_err(error)?;
-        let manifest_bytes = bytes(&slot, "manifest.json")?.0;
-        let manifest: TrashManifest = serde_json::from_slice(&manifest_bytes)
-            .map_err(|_| DocumentError::new("invalidMetadata", "복구 정보가 올바르지 않습니다."))?;
-        let (dir, name) = self.parent(&manifest.path)?;
-        let document = snapshot(&manifest.path, bytes(&slot, "document.md")?.0)?;
-        if document.revision != manifest.revision {
-            return Err(conflict());
-        }
+        let (slot, document) = self.retained(id)?;
+        let (dir, name) = self.parent(&document.path)?;
         slot.hard_link("document.md", &dir, name).map_err(error)?;
         // Publication already succeeded. A leftover recovery copy must not
         // report a failed restore or cause callers to retry the publication.

@@ -131,6 +131,8 @@ gh-58에서 [backend 작업 루트와 같은 DocumentService 공유](document-wo
 
 gh-56은 기존 gh-55와 마지막 하위 작업 gh-60에 의존한다. gh-50의 전체 application 완료 감사는 gh-57에 남아 있으며, MCP handler/HTTP는 gh-51, grant/ACP·UI 이벤트와 dirty 보호는 gh-52, 실제 설치 agent와 macOS 화면은 gh-53에서 검증한다. 각 하위 작업의 구현·필요 검증 후 개별 커밋과 push를 진행한다.
 
+gh-59의 [scoped 문서 application](scoped-document-application.md)은 같은 service 잠금에서 path/permalink 조회, 목록·검색/cursor, UUID 생성, metadata patch, CAS와 복구 삭제를 제공한다. 파일 목록의 불완전성을 경고하고 ID 고유성을 확인할 수 없는 쓰기는 거부한다. mutation 재시도·task 소유·drain은 gh-60에 유지한다.
+
 ## gh-48 설계 단위 검증
 
 부모 gh-20의 기준1~9와 위 작업 배분을 대조했다. 기존 ACP 공유 client/core의 전달 경로와 capability 분기, 문서 service/repository, TS metadata 및 연결 저장소 소스를 읽어 재사용/확장 경계를 확인했다. 문서 두 개의 상대 링크를 검사해 누락이 없고 AW 계획 커밋의 remote branch SHA가 일치함을 확인했다. 하위 gh-49~gh-53은 모두 gh-20에 등록하며 위 선행 관계를 유지한다.
