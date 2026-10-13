@@ -1,0 +1,24 @@
+{
+  "productName": "box.md NativeQA",
+  "identifier": "com.yoophi.box-md.nativeqa",
+  "build": {
+    "beforeBuildCommand": "pnpm run prepare:server:dev && pnpm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "box.md NativeQA",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 600,
+        "minHeight": 480
+      }
+    ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": { "schemes": ["boxmd-nativeqa"] }
+    }
+  }
+}
