@@ -70,7 +70,7 @@ AW에도 [공유 호스트 계획](https://github.com/yoophi/agentic-workspace/b
 
 ## 저장, 범위와 UI 충돌
 
-서버는 사용자 설정으로 선택한 루트의 canonical directory handle과 generation을 소유한다. 에이전트가 루트나 절대 경로를 지정할 수 없다. 상대 경로의 traversal, symlink escape, symlink 교체 중 read/write/delete가 범위를 벗어나지 않도록 filesystem capability/handle 기반 adapter를 구현한다. 단순히 canonicalize한 뒤 기존 absolute-path 저장소를 다시 호출하는 검사만으로 이를 완료했다고 판단하지 않는다.
+서버는 사용자 설정으로 선택한 루트의 directory handle과 generation을 소유한다. 에이전트가 루트나 절대 경로를 지정할 수 없다. 상대 경로의 traversal, symlink escape, symlink 교체 중 read/write/delete가 범위를 벗어나지 않도록 filesystem capability/handle 기반 adapter를 구현한다. 단순히 canonicalize한 뒤 기존 absolute-path 저장소를 다시 호출하는 검사만으로 이를 완료했다고 판단하지 않는다.
 
 UI와 MCP의 저장은 같은 DocumentService 및 mutation lock을 사용한다. 변경 요청은 mandatory `expectedRevision`으로 현재 파일을 비교하고 새로운 revision과 이력을 기록한다. 저장소 adapter를 확장해 UI의 기존 직접 열기/다른 이름 저장 흐름도 보존한다. 외부 일반 editor와의 원자적 CAS는 현재 파일 API만으로 보장된다고 주장하지 않으며 감지 가능한 충돌은 덮어쓰기 전에 반환한다.
 
@@ -105,6 +105,19 @@ AW [ACP runner](../vendor/agentic-workspace/crates/acp-agent-core/src/infrastruc
 부모의 gh-3/gh-7 선행 관계는 유지한다. 독립 기반 작업은 기존 완료된 공유 HTTP client를 선행으로 삼아 진행하지만 실제 ACP 완료 게이트를 제거하지 않는다.
 
 각 단위는 작업 커밋과 필요한 검증 결과를 남긴다. Rust/API 변경에는 프로젝트 기본 검증과 관련 실패/회귀 테스트를 실행한다. 공유 호스트의 실제 HTTP 테스트는 native 화면/실제 provider 검증을 대체하지 않는다. 마지막에는 부모 기준마다 구현 소스, 실행 결과, UI/native 화면 및 문서 근거를 연결해 감사한다. MCP fixture의 ACP 사용만으로 실제 설치 에이전트의 도구 사용을 통과 처리하지 않는다.
+
+## gh-50 순차 하위 작업
+
+부모 gh-50의 전체 수용 기준을 아래 작업으로 나눴다. gh-50은 gh-49와 마지막 통합 검증 gh-57에 의존하며, gh-20의 기존 gh-3 의존성과 gh-51~gh-53 순서를 유지한다.
+
+| 작업 | 범위 | 선행 |
+| --- | --- | --- |
+| gh-54 | directory handle 기반 scoped filesystem, 실제 경로/race/CAS/복구 검증. [저장소 계약](scoped-document-store.md) | gh-49 |
+| gh-55 | Rust lossless frontmatter adapter와 TS 공통 fixture. [조사와 채택 조건](frontmatter-rust-adapter-research.md) | gh-54 |
+| gh-56 | 같은 DocumentService/UI 저장·이력 경로에 scoped 저장소/metadata 통합, permalink 조회, 목록/검색/변경, requestId dedupe와 accepted-task drain | gh-55 |
+| gh-57 | gh-50 기준별 실제 파일·기존 command/service 통합 검증과 완료 감사 | gh-56, 완료된 gh-7/gh-12/gh-13 |
+
+gh-54의 저장소 테스트는 metadata/application 구현이나 MCP/native/ACP 검증을 대신하지 않는다. UI 이벤트·dirty 보호와 grant/session 수명은 gh-52, 실제 macOS 화면과 설치 agent의 HTTP MCP 검증은 gh-53에 남아 있다.
 
 ## gh-48 설계 단위 검증
 
