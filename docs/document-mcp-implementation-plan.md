@@ -119,7 +119,7 @@ AW [ACP runner](../vendor/agentic-workspace/crates/acp-agent-core/src/infrastruc
 | gh-56 | 같은 DocumentService/UI 저장·이력 경로에 scoped 저장소/metadata 통합, permalink 조회, 목록/검색/변경, requestId dedupe와 accepted-task drain | gh-55 |
 | gh-57 | gh-50 기준별 실제 파일·기존 command/service 통합 검증과 완료 감사 | gh-56, 완료된 gh-7/gh-12/gh-13 |
 
-gh-54의 저장소 테스트는 metadata/application 구현이나 MCP/native/ACP 검증을 대신하지 않는다. UI 이벤트·dirty 보호와 grant/session 수명은 gh-52, 실제 macOS 화면과 설치 agent의 HTTP MCP 검증은 gh-53에 남아 있다.
+gh-54의 저장소 테스트는 metadata/application 구현이나 MCP/native/ACP 검증을 대신하지 않는다. gh-57의 [문서 서비스 수용 기준 감사](scoped-document-service-acceptance-audit.md)는 gh-50의 실제 파일·기존 command 및 기본 검사 근거를 정리한다. UI 이벤트·dirty 보호와 grant/session 수명은 gh-52, 실제 macOS 화면과 설치 agent의 HTTP MCP 검증은 gh-53에 남아 있다.
 
 ## gh-56 서비스 통합 하위 작업
 

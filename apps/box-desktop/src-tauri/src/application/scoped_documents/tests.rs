@@ -81,15 +81,32 @@ fn references_missing_ids_create_unicode_and_resolve_after_move() {
     uuid::Uuid::parse_str(&permalink).unwrap();
     assert!(created.document.content.starts_with('\u{feff}'));
     assert!(created.document.content.ends_with("# 한글 본문\r\n"));
+    let (retitled, _) = scope
+        .update_metadata(
+            &id(&permalink),
+            &patch(serde_json::json!({"title":"변경한 제목"})),
+            &[],
+            &created.document.revision,
+        )
+        .unwrap();
+    assert_eq!(retitled.permalink.as_deref(), Some(permalink.as_str()));
+    assert!(retitled.document.content.ends_with("# 한글 본문\r\n"));
     fs::rename(
         root.path().join("중첩/노트.md"),
         root.path().join("renamed.md"),
     )
     .unwrap();
-    assert_eq!(
-        scope.read_document(&id(&permalink)).unwrap().document.path,
-        "renamed.md"
-    );
+    let moved = scope.read_document(&id(&permalink)).unwrap();
+    assert_eq!(moved.document.path, "renamed.md");
+    assert_eq!(moved.document.revision, retitled.document.revision);
+    assert_eq!(moved.document.content, retitled.document.content);
+    let moved_metadata = scope.get_metadata(&id(&permalink)).unwrap();
+    assert_eq!(moved_metadata.metadata["title"], "변경한 제목");
+    let native = manager
+        .read(root.path().join("renamed.md").to_str().unwrap())
+        .unwrap();
+    assert_eq!(native.content, retitled.document.content);
+    assert_eq!(native.revision, retitled.document.revision);
     assert_eq!(
         scope.read_document(&path("중첩/노트.md")).unwrap_err().code,
         "notFound"
