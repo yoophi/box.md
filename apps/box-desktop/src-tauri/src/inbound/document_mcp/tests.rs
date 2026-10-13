@@ -1198,3 +1198,159 @@ async fn connection_membership_resolution_never_selects_duplicate_or_partial_tar
     );
     f.stop().await;
 }
+
+fn audit_arguments(name: &str) -> Value {
+    let document = json!({"path":"legacy.md"});
+    let revision = "0".repeat(64);
+    let request = format!("audit-{name}");
+    match name {
+        "list_documents" | "list_connections" => json!({}),
+        "search_documents" => json!({"query":"root"}),
+        "read_document" | "get_document_metadata" | "get_document_links" => {
+            json!({"document":document})
+        }
+        "create_document" => json!({"content":"denied","requestId":request}),
+        "duplicate_document" | "delete_document" => {
+            json!({"document":document,"expectedRevision":revision,"requestId":request})
+        }
+        "update_document" => {
+            json!({"document":document,"content":"denied","expectedRevision":revision,"requestId":request})
+        }
+        "update_document_metadata" => {
+            json!({"document":document,"patch":{"title":"denied"},"remove":[],"expectedRevision":revision,"requestId":request})
+        }
+        "restore_document" => {
+            json!({"trashId":"00000000-0000-4000-8000-000000000000","requestId":request})
+        }
+        "create_connection" => json!({"name":"denied","requestId":request}),
+        "attach_connection" | "detach_connection" => {
+            json!({"connectionId":"audit-connection","permalink":"legacy-0","requestId":request})
+        }
+        _ => panic!("Audit must cover every advertised tool: {name}"),
+    }
+}
+
+#[tokio::test]
+async fn every_tool_rejects_unknown_fields_retired_scopes_and_revoked_credentials_without_writes() {
+    let f = Fixture::new().await;
+    let connection = f.connections.create("audit-existing").unwrap();
+    f.connections
+        .attach(&connection.entities[0].id, "legacy-0")
+        .unwrap();
+    let profile = fs::read(f.connection_dir.path().join("connections.json")).unwrap();
+    let source = fs::read(f.roots[0].path().join("legacy.md")).unwrap();
+    for name in schemas::NAMES {
+        let mut args = audit_arguments(name);
+        assert!(schemas::valid(
+            &Value::Object((*schemas::tool(name).unwrap().input_schema).clone()),
+            &args
+        ));
+        args["unexpected"] = json!("private-input-marker");
+        let output = f.call(name, args).await;
+        assert_eq!(
+            output["error"]["code"], "invalidArguments",
+            "{name}: {output}"
+        );
+        assert!(!output.to_string().contains("private-input-marker"));
+    }
+    f.scopes[0].close_and_drain();
+    for name in schemas::NAMES {
+        let output = f.call(name, audit_arguments(name)).await;
+        assert_eq!(output["error"]["code"], "scopeRevoked", "{name}: {output}");
+        for sensitive in [
+            "fixture-a",
+            f.roots[0].path().to_str().unwrap(),
+            f.connection_dir.path().to_str().unwrap(),
+        ] {
+            assert!(!output.to_string().contains(sensitive));
+        }
+    }
+    f.grants.lock().unwrap().remove("fixture-a");
+    for name in schemas::NAMES {
+        let response = f.client.post(f.host.endpoint()).bearer_auth("fixture-a")
+            .header("accept", "application/json, text/event-stream")
+            .header("mcp-protocol-version", "2025-11-25")
+            .json(&json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":name,"arguments":audit_arguments(name)}}))
+            .send().await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{name}");
+        assert_eq!(response.text().await.unwrap(), "Unauthorized");
+    }
+    assert_eq!(
+        fs::read(f.roots[0].path().join("legacy.md")).unwrap(),
+        source
+    );
+    assert_eq!(fs::read_dir(f.roots[0].path()).unwrap().count(), 1);
+    assert_eq!(
+        fs::read(f.connection_dir.path().join("connections.json")).unwrap(),
+        profile
+    );
+    assert_eq!(
+        f.call_as("fixture-b", "list_documents", json!({})).await["ok"],
+        true
+    );
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn reference_tools_reject_traversal_and_external_symlinks_without_leaking_or_changing_files()
+{
+    let f = Fixture::new().await;
+    let outside = fs::read(f.roots[1].path().join("legacy.md")).unwrap();
+    let source = fs::read(f.roots[0].path().join("legacy.md")).unwrap();
+    let mut paths = vec![
+        "../private-input-marker.md".to_owned(),
+        f.roots[1]
+            .path()
+            .join("legacy.md")
+            .to_str()
+            .unwrap()
+            .to_owned(),
+    ];
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(
+            f.roots[1].path().join("legacy.md"),
+            f.roots[0].path().join("escape.md"),
+        )
+        .unwrap();
+        paths.push("escape.md".into());
+    }
+    for name in [
+        "read_document",
+        "get_document_metadata",
+        "get_document_links",
+        "list_connections",
+        "duplicate_document",
+        "update_document",
+        "delete_document",
+        "update_document_metadata",
+    ] {
+        for (index, path) in paths.iter().enumerate() {
+            let mut args = audit_arguments(name);
+            args["document"] = json!({"path":path});
+            if args.get("requestId").is_some() {
+                args["requestId"] = json!(format!("boundary-{name}-{index}"));
+            }
+            let output = f.call(name, args).await;
+            assert_eq!(output["ok"], false, "{name}: {output}");
+            for sensitive in [
+                "private-input-marker",
+                f.roots[0].path().to_str().unwrap(),
+                f.roots[1].path().to_str().unwrap(),
+            ] {
+                assert!(!output.to_string().contains(sensitive), "{name}: {output}");
+            }
+        }
+    }
+    assert_eq!(
+        fs::read(f.roots[0].path().join("legacy.md")).unwrap(),
+        source
+    );
+    assert_eq!(
+        fs::read(f.roots[1].path().join("legacy.md")).unwrap(),
+        outside
+    );
+    assert!(!f.connection_dir.path().join("connections.json").exists());
+    assert!(!f.roots[0].path().join(".box.md").exists());
+    f.stop().await;
+}

@@ -18,7 +18,7 @@ gh-69의 [문서 도구 구현 및 실행 결과](document-mcp-tools.md)는 실�
 
 gh-70의 하위 순서는 gh-73(공통 문법·본문 links/backlinks HTTP 조회) → gh-74(기존 독립 연결 저장소와 accepted mutation/retry 도구)다. [본문 조회 구현](document-mcp-links.md)은 공통 TS/Rust fixture와 실제 HTTP·파일 보존 및 부분 조회 한계를 기록한다. gh-70은 마지막 gh-74 뒤에 전체 기준을 검토한다.
 
-gh-74의 [독립 연결 도구](document-mcp-connections.md)는 같은 profile service 주입, reservation 이전 write 금지, nonce·동시·TCP 유실 및 실제 root select/drain의 실행 근거와 gh-70 기준 대조표를 기록한다. 현재 handler는 문서·본문·독립 연결 도구 15개를 제공한다. 다음 gh-71에서 부모 gh-51 전체 HTTP 기준을 감사한다.
+gh-74의 [독립 연결 도구](document-mcp-connections.md)는 같은 profile service 주입, reservation 이전 write 금지, nonce·동시·TCP 유실 및 실제 root select/drain의 실행 근거와 gh-70 기준 대조표를 기록한다. 현재 handler는 문서·본문·독립 연결 도구 15개를 제공한다. gh-71의 [전체 HTTP 감사](document-mcp-http-acceptance-audit.md)는 부모 gh-51 기준과 전체 도구 인증/retirement·참조 경계 및 기본 검사 근거를 대조한다. native grant/ACP/UI 및 실제 설치 agent 검증은 gh-52~53에 남아 있다.
 
 ## adapter와 application 경계
 
