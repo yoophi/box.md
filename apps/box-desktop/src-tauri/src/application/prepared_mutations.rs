@@ -7,7 +7,7 @@ use crate::domain::{
     document::{DocumentError, DocumentSnapshot},
     scoped_document::DocumentRef,
 };
-use box_document_store::{patch_document_metadata, set_document_property};
+use box_document_store::{document_property, patch_document_metadata, set_document_property};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -34,6 +34,70 @@ fn finish_document(value: &mut Value, saved: DocumentSnapshot) {
     };
 }
 impl DocumentStore {
+    fn create_identified(
+        &self,
+        content: &str,
+        source: Option<&DocumentSnapshot>,
+        reserve: impl FnOnce(&Value) -> Result<(), DocumentError>,
+    ) -> MutationResult {
+        let identities = self.identities.as_ref().ok_or_else(|| {
+            DocumentError::new(
+                "identityUnavailable",
+                "문서 식별자 생성기를 사용할 수 없습니다.",
+            )
+        })?;
+        let mut reserve = Some(reserve);
+        for _ in 0..32 {
+            let id = identities.next_id()?;
+            let bytes = id.as_bytes();
+            if bytes.len() != 21
+                || !bytes[..12].iter().all(u8::is_ascii_digit)
+                || bytes[12] != b'-'
+                || !bytes[13..]
+                    .iter()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(b))
+            {
+                return Err(DocumentError::new(
+                    "identityUnavailable",
+                    "문서 식별자 형식이 올바르지 않습니다.",
+                ));
+            }
+            let path = format!("{id}.md");
+            if self.repository.revision(&path)?.is_some() {
+                continue;
+            }
+            let candidate = set_document_property(content, "permalink", &id)?;
+            let planned = match self.planned(&path, candidate) {
+                Err(error) if error.code == "duplicatePermalink" => continue,
+                other => other?,
+            };
+            let mut value = json!({"document":document_value(&planned)?});
+            if let Some(reserve) = reserve.take() {
+                reserve(&value)?;
+            }
+            if let Some(source) = source {
+                // The caller's draft never replaces the source file. Detect a
+                // source change before publishing its independent copy.
+                self.expected(
+                    &DocumentRef::Path {
+                        path: source.path.clone(),
+                    },
+                    &source.revision,
+                )?;
+            }
+            match self.write(&path, &planned.content, None) {
+                Err(error) if error.code == "conflict" => continue,
+                saved => {
+                    finish_document(&mut value["document"], saved?);
+                    return Ok(value);
+                }
+            }
+        }
+        Err(DocumentError::new(
+            "identityConflict",
+            "문서 식별자 충돌이 반복되었습니다. 다시 시도해주세요.",
+        ))
+    }
     fn expected(
         &self,
         reference: &DocumentRef,
@@ -70,6 +134,26 @@ impl DocumentService {
         let store = self.lock()?;
         store.scoped_repository()?;
         match mutation {
+            DocumentMutation::CreateDocument { content } => {
+                store.create_identified(&content, None, reserve)
+            }
+            DocumentMutation::DuplicateDocument {
+                document,
+                expected_revision,
+                content,
+            } => {
+                let source = store.expected(&document, &expected_revision)?;
+                let content = content.as_deref().unwrap_or(&source.content);
+                let title = document_property(content, "title")?;
+                let title = if title.trim().is_empty() {
+                    source.path.rsplit('/').next().unwrap_or(&source.path)
+                } else {
+                    &title
+                };
+                let patch = json!({"title":format!("{title} 사본")});
+                let candidate = patch_document_metadata(content, patch.as_object().unwrap(), &[])?;
+                store.create_identified(&candidate, Some(&source), reserve)
+            }
             DocumentMutation::Create { path, content } => {
                 let content = if properties(&content)?.0.is_none() {
                     set_document_property(&content, "permalink", &uuid::Uuid::new_v4().to_string())?

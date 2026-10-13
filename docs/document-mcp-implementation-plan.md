@@ -39,7 +39,8 @@ AW에도 [공유 호스트 계획](https://github.com/yoophi/agentic-workspace/b
 | `list_documents` | `cursor?`, `limit?` (1~100, 기본 50) | `documents: [{path, permalink?, summary?, revision}]`, `nextCursor?`, `warnings`, `truncated` |
 | `read_document` | `document: DocumentRef` | `document: {path, permalink?, content, revision}` |
 | `search_documents` | `query`, `cursor?`, `limit?` | `matches: [{path, permalink?, revision, excerpts}]`, `nextCursor?`, `warnings`, `truncated` |
-| `create_document` | `path`, `content`, `requestId` | 새 문서 snapshot. 기존 파일을 덮어쓰지 않는다. |
+| `create_document` | `content`, `requestId` | 서버 결정 ID/파일명의 snapshot. 기존 파일을 덮어쓰지 않는다. |
+| `duplicate_document` | `document`, `expectedRevision`, `content?`, `requestId` | 새 ID/파일과 title 사본. 원본 및 독립 관계 보존. |
 | `update_document` | `document`, `content`, `expectedRevision`, `requestId` | 저장된 snapshot 및 `historyWarning?` |
 | `delete_document` | `document`, `expectedRevision`, `requestId` | `deleted: {path, permalink?, revision}`, 복구용 `trashId` |
 | `get_document_metadata` | `document` | `path`, `revision`, `metadata` (JSON 객체), `permalink?`, `summary?` |
@@ -51,7 +52,7 @@ AW에도 [공유 호스트 계획](https://github.com/yoophi/agentic-workspace/b
 
 검색은 문서 본문·요약·permalink를 대상으로 하는 대소문자 무시 literal 검색이다. 결과 excerpt는 제한한다. 목록과 검색의 scan 한계·읽기 실패는 `warnings`와 `truncated`로 표시하며 완전한 검색으로 오인하게 하지 않는다. cursor는 루트 generation과 index revision에 묶으며 저장소가 바뀌면 `staleCursor`로 재시작을 요구한다.
 
-`create_document`는 유효한 frontmatter를 검사하며 permalink가 없으면 UUID를 추가한다. 모든 저장은 현재 workspace 내 permalink 중복을 거부한다. metadata patch는 최상위 key 변경이며 `patch`와 `remove`가 같은 key를 지정하면 실패한다. `summary`와 `permalink`는 한 줄 문자열 계약을 유지한다. 저장되지 않은 permalink 변경 때문에 기존 관계가 다른 문서로 옮겨가지 않는다. 알 수 없는 nested 값과 주석을 유지하고 본문을 byte 단위로 보존해야 하며, 이 조건을 만족하는 서버 YAML adapter를 확정하기 전 손실 있는 전체 재직렬화를 채택하지 않는다.
+`create_document`는 유효한 frontmatter를 검사하고 로컬 생성일/난수 permalink와 ID 파일명을 서버에서 결정한다. 복제는 새 ID와 title 사본을 생성한다. 공통 application/native 계약은 [생성·복제 서비스](document-creation-duplication-service.md)를 따른다. 모든 저장은 현재 workspace 내 permalink 중복을 거부한다. metadata patch는 최상위 key 변경이며 `patch`와 `remove`가 같은 key를 지정하면 실패한다. `summary`와 `permalink`는 한 줄 문자열 계약을 유지한다. 저장되지 않은 permalink 변경 때문에 기존 관계가 다른 문서로 옮겨가지 않는다. 알 수 없는 nested 값과 주석 및 본문 byte를 보존하는 adapter를 사용하고 손실 있는 전체 재직렬화를 채택하지 않는다.
 
 삭제는 `.box.md/trash` 아래 복구 가능한 저장으로 구현한다. 성공은 원본과 복구 데이터를 안전하게 이동한 뒤 반환하며 기존 history와 별도 connection 데이터는 유지한다. 삭제된 문서의 관계는 unresolved로 표시한다. hidden 관리 디렉터리는 일반 문서 목록/검색에서 제외한다. title/path 변경은 permalink를 바꾸지 않으며 기존 index를 영구 ID 저장소로 오인하지 않는다.
 

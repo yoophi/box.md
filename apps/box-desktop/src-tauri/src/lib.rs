@@ -47,6 +47,8 @@ mod browser_permission_tests {
                 inbound::workspace_commands::list_workspace_documents,
                 inbound::document_commands::open_document,
                 inbound::document_commands::save_document,
+                inbound::document_commands::create_document,
+                inbound::document_commands::duplicate_document,
                 inbound::document_commands::document_history
             ])
             .build(app_context())
@@ -112,6 +114,45 @@ mod browser_permission_tests {
                 .content,
             "from IPC"
         );
+        let created: serde_json::Value = get_ipc_response(
+            &main,
+            request("create_document", serde_json::json!({"generation":selected["generation"],"requestId":"ipc-create","content":"# new"}), "tauri://localhost/"),
+        ).unwrap().deserialize().unwrap();
+        let created = &created["document"];
+        let created_path = std::path::Path::new(created["path"].as_str().unwrap());
+        assert_eq!(
+            created_path.file_stem().unwrap().to_str().unwrap(),
+            created["permalink"].as_str().unwrap()
+        );
+        assert!(created_path.starts_with(selected["path"].as_str().unwrap()));
+        assert_eq!(
+            std::fs::read_to_string(created_path).unwrap(),
+            created["content"].as_str().unwrap()
+        );
+        let source = app
+            .state::<application::document_workspace::DocumentWorkspace>()
+            .scope()
+            .unwrap()
+            .read("note.md")
+            .unwrap();
+        let copied: serde_json::Value = get_ipc_response(
+            &main,
+            request("duplicate_document", serde_json::json!({"generation":selected["generation"],"requestId":"ipc-copy","document":{"path":"note.md"},"expectedRevision":source.revision}), "tauri://localhost/"),
+        ).unwrap().deserialize().unwrap();
+        assert_eq!(
+            box_document_store::document_property(
+                copied["document"]["content"].as_str().unwrap(),
+                "title"
+            )
+            .unwrap(),
+            "note.md 사본"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.path().join("note.md")).unwrap(),
+            "from IPC"
+        );
+        let stale = get_ipc_response(&main, request("create_document", serde_json::json!({"generation":"stale","requestId":"stale-create","content":"bad"}), "tauri://localhost/")).unwrap_err();
+        assert_eq!(stale["code"], "scopeRevoked");
         for origin in [
             "https://example.com/",
             "tauri://localhost/",
@@ -121,6 +162,8 @@ mod browser_permission_tests {
                 "select_document_workspace",
                 "open_document",
                 "save_document",
+                "create_document",
+                "duplicate_document",
                 "document_history",
                 "list_workspace_documents",
             ] {
@@ -265,6 +308,8 @@ pub fn run() {
             inbound::get_app_info,
             inbound::document_commands::open_document,
             inbound::document_commands::save_document,
+            inbound::document_commands::create_document,
+            inbound::document_commands::duplicate_document,
             inbound::document_commands::document_revision,
             inbound::document_commands::document_history,
             inbound::document_commands::history_content,

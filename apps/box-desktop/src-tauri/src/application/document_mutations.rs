@@ -44,6 +44,17 @@ fn json_size(value: &Value, limit: usize) -> Result<usize, DocumentError> {
     deny_unknown_fields
 )]
 pub enum DocumentMutation {
+    CreateDocument {
+        content: String,
+    },
+    DuplicateDocument {
+        document: DocumentRef,
+        expected_revision: String,
+        #[serde(default)]
+        content: Option<String>,
+    },
+    // Legacy path-directed construction is internal; public creation owns its ID/path.
+    #[serde(skip_deserializing)]
     Create {
         path: String,
         content: String,
@@ -151,6 +162,23 @@ fn canonical(value: &Value, output: &mut Sha256) {
 impl DocumentMutation {
     fn fingerprint(&self) -> Result<[u8; 32], DocumentError> {
         let revision = match self {
+            Self::CreateDocument { content } => {
+                if content.len() > MAX_INPUT_BYTES {
+                    return Err(invalid());
+                }
+                None
+            }
+            Self::DuplicateDocument {
+                document,
+                expected_revision,
+                content,
+            } => {
+                validate_reference(document)?;
+                if content.as_ref().is_some_and(|c| c.len() > MAX_INPUT_BYTES) {
+                    return Err(invalid());
+                }
+                Some(expected_revision)
+            }
             Self::Create { path, content } => {
                 box_document_store::validate_relative_document_path(path)?;
                 if content.len() > MAX_INPUT_BYTES {

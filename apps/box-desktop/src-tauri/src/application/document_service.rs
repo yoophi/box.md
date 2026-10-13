@@ -3,7 +3,10 @@ use crate::{
         document::{DocumentError, DocumentSnapshot},
         history::HistoryEntry,
     },
-    ports::{document_history::DocumentHistory, document_repository::DocumentRepository},
+    ports::{
+        document_history::DocumentHistory, document_identity::DocumentIdentitySource,
+        document_repository::DocumentRepository,
+    },
 };
 use box_document_store::{ScopedDocumentRepository, ScopedListing};
 use std::sync::{Arc, Mutex};
@@ -12,6 +15,7 @@ pub(super) struct DocumentStore {
     pub(super) repository: Box<dyn DocumentRepository>,
     pub(super) history: Box<dyn DocumentHistory>,
     pub(super) scoped: Option<Arc<dyn ScopedDocumentRepository>>,
+    pub(super) identities: Option<Arc<dyn DocumentIdentitySource>>,
 }
 pub struct DocumentService {
     store: Mutex<DocumentStore>,
@@ -26,6 +30,7 @@ impl DocumentService {
                 repository: Box::new(repository),
                 history: Box::new(history),
                 scoped: None,
+                identities: None,
             }),
         }
     }
@@ -38,8 +43,16 @@ impl DocumentService {
                 repository: Box::new(SharedScopedRepository(repository.clone())),
                 history: Box::new(history),
                 scoped: Some(repository),
+                identities: None,
             }),
         }
+    }
+    pub fn with_identity_source(mut self, source: impl DocumentIdentitySource + 'static) -> Self {
+        self.store
+            .get_mut()
+            .unwrap_or_else(|e| e.into_inner())
+            .identities = Some(Arc::new(source));
+        self
     }
     pub fn listing(&self) -> Result<ScopedListing, DocumentError> {
         self.lock()?

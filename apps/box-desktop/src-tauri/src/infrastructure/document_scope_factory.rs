@@ -1,4 +1,7 @@
-use super::{fs_document_repository::checked_path, git_document_history::GitDocumentHistory};
+use super::{
+    document_identity::LocalDocumentIdentity, fs_document_repository::checked_path,
+    git_document_history::GitDocumentHistory,
+};
 use crate::{
     application::document_service::DocumentService,
     domain::{document::DocumentError, history::HistoryEntry},
@@ -46,7 +49,10 @@ impl DocumentScopeFactory for FsDocumentScopeFactory {
         Ok(DocumentScopeStorage {
             path: canonical.clone(),
             aliases: vec![canonical, path.into()],
-            service: Arc::new(DocumentService::scoped(repository, history)),
+            service: Arc::new(
+                DocumentService::scoped(repository, history)
+                    .with_identity_source(LocalDocumentIdentity),
+            ),
         })
     }
     fn native_path(&self, path: &str) -> Result<String, DocumentError> {

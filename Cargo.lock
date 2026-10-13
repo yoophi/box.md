@@ -447,6 +447,8 @@ name = "box-desktop"
 version = "0.1.0"
 dependencies = [
  "box-document-store",
+ "chrono",
+ "getrandom 0.4.3",
  "objc2-web-kit",
  "serde",
  "serde_json",

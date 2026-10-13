@@ -50,6 +50,434 @@ fn data(ticket: MutationTicket) -> Value {
     ticket.wait().as_ref().as_ref().unwrap().clone()
 }
 
+struct FixedIdentities(Arc<Mutex<std::collections::VecDeque<String>>>);
+impl crate::ports::document_identity::DocumentIdentitySource for FixedIdentities {
+    fn next_id(&self) -> Result<String, DocumentError> {
+        self.0
+            .lock()
+            .unwrap()
+            .pop_front()
+            .ok_or_else(|| DocumentError::new("identityUnavailable", "test identities exhausted"))
+    }
+}
+fn generated_scope(
+    root: &Path,
+    history: &Path,
+    ids: &[&str],
+    count: usize,
+    bytes: usize,
+) -> (
+    DocumentScope,
+    Arc<Mutex<std::collections::VecDeque<String>>>,
+) {
+    let identities = Arc::new(Mutex::new(ids.iter().map(|s| s.to_string()).collect()));
+    let mut storage = FsDocumentScopeFactory::new(history.into())
+        .open(root.to_str().unwrap())
+        .unwrap();
+    let service = Arc::try_unwrap(storage.service).ok().unwrap();
+    storage.service = Arc::new(service.with_identity_source(FixedIdentities(identities.clone())));
+    (
+        DocumentScope {
+            generation: uuid::Uuid::new_v4().to_string(),
+            storage,
+            admission: ScopeAdmission::new(),
+            mutations: MutationRegistry::with_limits(count, bytes),
+        },
+        identities,
+    )
+}
+fn generated(content: &str) -> DocumentMutation {
+    DocumentMutation::CreateDocument {
+        content: content.into(),
+    }
+}
+fn duplicate(source: &DocumentSnapshot, content: Option<&str>) -> DocumentMutation {
+    DocumentMutation::DuplicateDocument {
+        document: DocumentRef::Path {
+            path: source.path.clone(),
+        },
+        expected_revision: source.revision.clone(),
+        content: content.map(str::to_string),
+    }
+}
+
+#[test]
+fn generated_files_retry_file_and_permalink_collisions_and_keep_the_first_id_on_retry() {
+    let root = tempfile::tempdir().unwrap();
+    let history = tempfile::tempdir().unwrap();
+    let ids = [
+        "261013120000-00000000",
+        "261013120000-00000001",
+        "261013120000-00000002",
+        "261013120000-00000003",
+    ];
+    let (scope, remaining) =
+        generated_scope(root.path(), history.path(), &ids, 128, 64 * 1024 * 1024);
+    let occupied = scope
+        .save(
+            &format!("{}.md", ids[0]),
+            "---\npermalink: legacy\n---\noriginal",
+            None,
+        )
+        .unwrap();
+    let alias = scope
+        .save(
+            "alias.md",
+            &format!("---\npermalink: {}\n---\nalias", ids[1]),
+            None,
+        )
+        .unwrap();
+    let first = scope
+        .submit_mutation("first", generated("\u{feff}# 본문\r\n"))
+        .unwrap()
+        .wait();
+    let value = first.as_ref().as_ref().unwrap();
+    assert_eq!(value["document"]["path"], format!("{}.md", ids[2]));
+    assert_eq!(value["document"]["permalink"], ids[2]);
+    let content = value["document"]["content"].as_str().unwrap();
+    assert!(content.starts_with('\u{feff}'));
+    assert!(content.ends_with("# 본문\r\n"));
+    assert_eq!(
+        fs::read_to_string(root.path().join(&occupied.path)).unwrap(),
+        occupied.content
+    );
+    assert_eq!(scope.read("alias.md").unwrap().content, alias.content);
+    let retry = scope
+        .submit_mutation("first", generated("\u{feff}# 본문\r\n"))
+        .unwrap()
+        .wait();
+    assert!(Arc::ptr_eq(&first, &retry));
+    assert_eq!(remaining.lock().unwrap().len(), 1);
+    assert_eq!(
+        scope
+            .submit_mutation("first", generated("different"))
+            .err()
+            .unwrap()
+            .code,
+        "requestIdConflict"
+    );
+    let second = data(
+        scope
+            .submit_mutation("second", generated("second"))
+            .unwrap(),
+    );
+    assert_eq!(second["document"]["path"], format!("{}.md", ids[3]));
+    assert_eq!(scope.listing().unwrap().paths.len(), 4);
+}
+
+#[test]
+fn duplication_keeps_the_original_history_connections_and_raw_body_and_uses_a_title_fallback() {
+    let root = tempfile::tempdir().unwrap();
+    let history = tempfile::tempdir().unwrap();
+    let (scope, remaining) = generated_scope(
+        root.path(),
+        history.path(),
+        &["261013120001-00000004", "261013120001-00000005"],
+        128,
+        64 * 1024 * 1024,
+    );
+    let original = "\u{feff}---\r\n# KEEP\r\npermalink: old-id\r\ntitle: 문서 # TITLE\r\nunknown: {a: [one, two]} # UNKNOWN\r\nsummary: 요약\r\n---\r\n본문\r\n";
+    let source = scope.save("source.md", original, None).unwrap();
+    let connection_root = history.path().join("connections");
+    let relations = crate::application::connection_service::ConnectionService::new(
+        crate::infrastructure::fs_connection_repository::FsConnectionRepository::new(
+            connection_root.clone(),
+        ),
+    );
+    let entity = relations.create("검토").unwrap().entities[0].id.clone();
+    relations.attach(&entity, "old-id").unwrap();
+    relations.attach(&entity, "other-id").unwrap();
+    let before_relations = relations.snapshot().unwrap();
+    let connections = connection_root.join("connections.json");
+    let before_connections = fs::read(&connections).unwrap();
+    let draft = original.replace("본문\r\n", "미저장 본문\r\n");
+    let first = scope
+        .submit_mutation("copy", duplicate(&source, Some(&draft)))
+        .unwrap()
+        .wait();
+    let value = first.as_ref().as_ref().unwrap();
+    let content = value["document"]["content"].as_str().unwrap();
+    assert_eq!(
+        box_document_store::document_property(content, "title").unwrap(),
+        "문서 사본"
+    );
+    assert_eq!(
+        box_document_store::document_property(content, "permalink").unwrap(),
+        "261013120001-00000004"
+    );
+    assert!(content.starts_with('\u{feff}'));
+    assert!(content.ends_with("미저장 본문\r\n"));
+    for keep in [
+        "# KEEP\r\n",
+        "# TITLE",
+        "unknown: {a: [one, two]} # UNKNOWN\r\n",
+        "summary: 요약\r\n",
+    ] {
+        assert!(content.contains(keep));
+    }
+    let retry = scope
+        .submit_mutation("copy", duplicate(&source, Some(&draft)))
+        .unwrap()
+        .wait();
+    assert!(Arc::ptr_eq(&first, &retry));
+    assert_eq!(remaining.lock().unwrap().len(), 1);
+    assert_eq!(scope.read("source.md").unwrap().content, original);
+    assert_eq!(scope.history("source.md").unwrap().len(), 1);
+    assert_eq!(
+        scope
+            .history(value["document"]["path"].as_str().unwrap())
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(fs::read(&connections).unwrap(), before_connections);
+    assert_eq!(relations.snapshot().unwrap(), before_relations);
+    let fallback = scope
+        .save("legacy.md", "---\npermalink: legacy-id\n---\nlegacy", None)
+        .unwrap();
+    let copy = data(
+        scope
+            .submit_mutation("fallback", duplicate(&fallback, None))
+            .unwrap(),
+    );
+    assert_eq!(
+        box_document_store::document_property(
+            copy["document"]["content"].as_str().unwrap(),
+            "title"
+        )
+        .unwrap(),
+        "legacy.md 사본"
+    );
+    let mut stale = fallback.clone();
+    stale.revision = "stale".into();
+    assert_eq!(
+        scope
+            .submit_mutation("stale-copy", duplicate(&stale, None))
+            .unwrap()
+            .wait()
+            .as_ref()
+            .as_ref()
+            .unwrap_err()
+            .code,
+        "conflict"
+    );
+    assert_eq!(scope.read("legacy.md").unwrap().content, fallback.content);
+}
+
+#[test]
+fn generated_collision_exhaustion_and_response_capacity_preserve_existing_files() {
+    let root = tempfile::tempdir().unwrap();
+    let history = tempfile::tempdir().unwrap();
+    let collision = "261013120002-00000000";
+    let ids = vec![collision; 32];
+    let (scope, _) = generated_scope(root.path(), history.path(), &ids, 128, 64 * 1024 * 1024);
+    scope
+        .save(&format!("{collision}.md"), "existing", None)
+        .unwrap();
+    let first = scope
+        .submit_mutation("collision", generated("new"))
+        .unwrap()
+        .wait();
+    assert_eq!(
+        first.as_ref().as_ref().unwrap_err().code,
+        "identityConflict"
+    );
+    let retry = scope
+        .submit_mutation("collision", generated("new"))
+        .unwrap()
+        .wait();
+    assert!(Arc::ptr_eq(&first, &retry));
+    assert_eq!(
+        scope.read(&format!("{collision}.md")).unwrap().content,
+        "existing"
+    );
+    let other = tempfile::tempdir().unwrap();
+    let (limited, _) = generated_scope(
+        other.path(),
+        history.path(),
+        &["261013120002-00000001"],
+        128,
+        5000,
+    );
+    assert_eq!(
+        limited
+            .submit_mutation("capacity", generated(&"x".repeat(6000)))
+            .unwrap()
+            .wait()
+            .as_ref()
+            .as_ref()
+            .unwrap_err()
+            .code,
+        "requestCapacityExceeded"
+    );
+    assert!(limited.listing().unwrap().paths.is_empty());
+    let copy_root = tempfile::tempdir().unwrap();
+    let (copy_limited, _) = generated_scope(
+        copy_root.path(),
+        history.path(),
+        &["261013120002-00000002"],
+        128,
+        5000,
+    );
+    let source = copy_limited
+        .save("source.md", "original source", None)
+        .unwrap();
+    assert_eq!(
+        copy_limited
+            .submit_mutation("copy-capacity", duplicate(&source, Some(&"x".repeat(6000))))
+            .unwrap()
+            .wait()
+            .as_ref()
+            .as_ref()
+            .unwrap_err()
+            .code,
+        "requestCapacityExceeded"
+    );
+    assert_eq!(
+        copy_limited.read("source.md").unwrap().content,
+        "original source"
+    );
+    assert_eq!(copy_limited.listing().unwrap().paths, ["source.md"]);
+    assert_eq!(copy_limited.history("source.md").unwrap().len(), 1);
+}
+
+#[test]
+fn generated_no_clobber_retries_a_file_created_after_candidate_validation() {
+    use crate::ports::document_repository::DocumentRepository;
+    struct LateWriter {
+        inner: Box<dyn DocumentRepository>,
+        root: std::path::PathBuf,
+        first: AtomicBool,
+    }
+    impl DocumentRepository for LateWriter {
+        fn read(&self, path: &str) -> Result<DocumentSnapshot, DocumentError> {
+            self.inner.read(path)
+        }
+        fn revision(&self, path: &str) -> Result<Option<String>, DocumentError> {
+            self.inner.revision(path)
+        }
+        fn save(
+            &self,
+            path: &str,
+            content: &str,
+            expected: Option<&str>,
+        ) -> Result<DocumentSnapshot, DocumentError> {
+            if self.first.swap(false, Ordering::SeqCst) {
+                fs::write(self.root.join(path), "late writer original").unwrap();
+            }
+            self.inner.save(path, content, expected)
+        }
+    }
+    let root = tempfile::tempdir().unwrap();
+    let history = tempfile::tempdir().unwrap();
+    let (scope, _) = generated_scope(
+        root.path(),
+        history.path(),
+        &["261013120003-00000000", "261013120003-00000001"],
+        128,
+        64 * 1024 * 1024,
+    );
+    {
+        let mut store = scope.storage.service.lock().unwrap();
+        let inner = std::mem::replace(&mut store.repository, Box::new(FsDocumentRepository));
+        store.repository = Box::new(LateWriter {
+            inner,
+            root: root.path().into(),
+            first: AtomicBool::new(true),
+        });
+    }
+    let result = data(
+        scope
+            .submit_mutation("late-collision", generated("new content"))
+            .unwrap(),
+    );
+    assert_eq!(result["document"]["path"], "261013120003-00000001.md");
+    assert_eq!(
+        scope.read("261013120003-00000000.md").unwrap().content,
+        "late writer original"
+    );
+    assert_eq!(scope.history("261013120003-00000000.md").unwrap().len(), 0);
+    assert_eq!(scope.history("261013120003-00000001.md").unwrap().len(), 1);
+}
+
+#[test]
+fn generated_argument_identity_failures_and_root_drain_never_write_the_next_root() {
+    for value in [
+        json!({"operation":"create","path":"chosen.md","content":"body"}),
+        json!({"operation":"create_document","content":"body","path":"chosen.md"}),
+        json!({"operation":"duplicate_document","document":{"path":"source.md"},"expectedRevision":"rev","root":"/outside"}),
+    ] {
+        assert!(serde_json::from_value::<DocumentMutation>(value).is_err());
+    }
+    let root = tempfile::tempdir().unwrap();
+    let next = tempfile::tempdir().unwrap();
+    let history = tempfile::tempdir().unwrap();
+    for ids in [vec![], vec!["../bad-id"]] {
+        let (scope, _) = generated_scope(root.path(), history.path(), &ids, 128, 64 * 1024 * 1024);
+        assert_eq!(
+            scope
+                .submit_mutation("no-id", generated("body"))
+                .unwrap()
+                .wait()
+                .as_ref()
+                .as_ref()
+                .unwrap_err()
+                .code,
+            "identityUnavailable"
+        );
+        assert!(scope.listing().unwrap().paths.is_empty());
+    }
+    let (manager, entered, release) = super::lifecycle_tests::manager(history.path());
+    let manager = Arc::new(manager);
+    manager
+        .select(root.path().to_str().unwrap(), false)
+        .unwrap();
+    let scope = manager.scope().unwrap();
+    let (_, abandoned) = manager
+        .submit_creation(
+            &scope.generation,
+            "accepted-new",
+            generated("accepted body"),
+        )
+        .unwrap();
+    entered.recv().unwrap();
+    let retry = scope
+        .submit_mutation("accepted-new", generated("accepted body"))
+        .unwrap();
+    drop(abandoned);
+    let switch = {
+        let manager = manager.clone();
+        let next = next.path().to_owned();
+        thread::spawn(move || manager.select(next.to_str().unwrap(), false))
+    };
+    scope.admission.wait_until_stopped();
+    assert_eq!(
+        scope
+            .submit_mutation("rejected", generated("reject"))
+            .err()
+            .unwrap()
+            .code,
+        "scopeRevoked"
+    );
+    release.wait();
+    switch.join().unwrap().unwrap();
+    let result = data(retry);
+    let path = result["document"]["path"].as_str().unwrap();
+    assert_eq!(
+        fs::read_to_string(root.path().join(path)).unwrap(),
+        result["document"]["content"]
+    );
+    assert!(!next.path().join(path).exists());
+    assert_eq!(
+        manager
+            .submit_creation(&scope.generation, "old-generation", generated("bad"))
+            .err()
+            .unwrap()
+            .code,
+        "scopeRevoked"
+    );
+}
+
 #[test]
 fn simultaneous_retries_return_the_same_first_result_and_record_one_native_shared_change() {
     let root = tempfile::tempdir().unwrap();

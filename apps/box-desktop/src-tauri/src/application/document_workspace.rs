@@ -255,6 +255,22 @@ mod tests {
     }
 }
 impl DocumentScope {
+    pub fn native_created_result(
+        &self,
+        ticket: MutationTicket,
+    ) -> Result<serde_json::Value, DocumentError> {
+        let outcome = ticket.wait();
+        let mut value = outcome
+            .as_ref()
+            .as_ref()
+            .map_err(|e| DocumentError::new(e.code, &e.message))?
+            .clone();
+        let path = value["document"]["path"]
+            .as_str()
+            .ok_or_else(|| DocumentError::new("internal", "문서 생성 응답이 올바르지 않습니다."))?;
+        value["document"]["path"] = serde_json::json!(self.native_path(path));
+        Ok(value)
+    }
     pub fn submit_mutation(
         &self,
         request_id: &str,
@@ -462,6 +478,28 @@ impl DocumentWorkspace {
             .ok_or_else(|| {
                 DocumentError::new("workspaceUnavailable", "작업 디렉터리를 선택해주세요.")
             })
+    }
+    pub fn submit_creation(
+        &self,
+        generation: &str,
+        request_id: &str,
+        mutation: DocumentMutation,
+    ) -> Result<(Arc<DocumentScope>, MutationTicket), DocumentError> {
+        if !matches!(
+            mutation,
+            DocumentMutation::CreateDocument { .. } | DocumentMutation::DuplicateDocument { .. }
+        ) {
+            return Err(DocumentError::new(
+                "invalidArguments",
+                "문서 생성 또는 복제를 사용해주세요.",
+            ));
+        }
+        let scope = self.scope()?;
+        if scope.generation != generation {
+            return Err(revoked());
+        }
+        let ticket = scope.submit_mutation(request_id, mutation)?;
+        Ok((scope, ticket))
     }
     pub fn select(&self, path: &str, rebind: bool) -> Result<WorkspaceSnapshot, DocumentError> {
         let mut current = self

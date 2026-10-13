@@ -6,6 +6,8 @@ fn main() {
             "get_workbench_connection",
             "open_document",
             "save_document",
+            "create_document",
+            "duplicate_document",
             "document_revision",
             "document_history",
             "history_content",

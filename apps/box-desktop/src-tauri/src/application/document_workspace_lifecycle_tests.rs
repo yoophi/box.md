@@ -46,16 +46,19 @@ struct BlockingFactory {
 impl DocumentScopeFactory for BlockingFactory {
     fn open(&self, path: &str) -> Result<DocumentScopeStorage, DocumentError> {
         let mut storage = self.inner.open(path)?;
-        storage.service = Arc::new(DocumentService::scoped(
-            Arc::new(ScopedFsDocumentRepository::open(Path::new(&storage.path))?),
-            BlockingHistory {
-                root: storage.path.clone().into(),
-                inner: GitDocumentHistory::new(self.history.clone()),
-                entered: self.entered.clone(),
-                release: self.release.clone(),
-                blocked: AtomicBool::new(false),
-            },
-        ));
+        storage.service = Arc::new(
+            DocumentService::scoped(
+                Arc::new(ScopedFsDocumentRepository::open(Path::new(&storage.path))?),
+                BlockingHistory {
+                    root: storage.path.clone().into(),
+                    inner: GitDocumentHistory::new(self.history.clone()),
+                    entered: self.entered.clone(),
+                    release: self.release.clone(),
+                    blocked: AtomicBool::new(false),
+                },
+            )
+            .with_identity_source(crate::infrastructure::document_identity::LocalDocumentIdentity),
+        );
         Ok(storage)
     }
     fn native_path(&self, path: &str) -> Result<String, DocumentError> {

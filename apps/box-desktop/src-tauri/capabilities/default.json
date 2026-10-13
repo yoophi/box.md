@@ -18,6 +18,8 @@
     "allow-get-workbench-connection",
     "allow-open-document",
     "allow-save-document",
+    "allow-create-document",
+    "allow-duplicate-document",
     "allow-document-revision",
     "allow-document-history",
     "allow-history-content",
