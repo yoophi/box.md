@@ -17,7 +17,20 @@
 
 - gh-26: 설정 UI와 저장 흐름. desktop 27개 단위/React 흐름 테스트, 기존 실제 HTTP ACP 통합, 사이드바 Chromium 5개 회귀 검증 및 프로젝트 기본 검사 통과.
 - gh-27: 실제 Chromium 설정 검증 8개와 사이드바 회귀 5개, 총 13개 통과. 명시적 저장과 reload 복원, 선택/설정 취소, 미저장 save/discard/cancel, 접근 불가 복구, 접근/저장 오류 시 기존 문서·설정 유지, 최초 설정 및 760×480 창 조작을 확인했다. 작은 창에서 제목이 가려지지 않도록 여백을 조정했다.
-- gh-28: 실제 Tauri 앱에서 네이티브 폴더 선택·저장, 완전한 프로세스 종료·재실행 후 경로와 목록 복원, 접근 불가 경고와 재선택 복구를 확인했다. 별도 NativeQA 프로필과 임시 문서를 사용하고 원본 해시 및 사용자 앱 유지도 확인했다. [native 실행·기준별 근거](workspace-settings-native-verification.md)를 참고한다. 상위 gh-14의 전체 완료 여부는 별도 감사로 판단한다.
+- gh-28: 실제 Tauri 앱에서 네이티브 폴더 선택·저장, 완전한 프로세스 종료·재실행 후 경로와 목록 복원, 접근 불가 경고와 재선택 복구를 확인했다. 별도 NativeQA 프로필과 임시 문서를 사용하고 원본 해시 및 사용자 앱 유지도 확인했다. [native 실행·기준별 근거](workspace-settings-native-verification.md)와 아래 상위 gh-14 감사를 참고한다.
+
+## gh-14 수용 기준 감사 (2026-10-13)
+
+| 기준 | 현재 구현과 실행 근거 | 판정 |
+| --- | --- | --- |
+| 1. 현재 경로 확인·다른 폴더 선택 | WorkspaceSettings의 저장 경로와 선택 초안 분리. gh-28 실제 설정 화면·macOS Open panel에서 workspace와 workspace-moved 선택. | 충족 |
+| 2. 저장 유지·사이드 목록 적용 | useDocumentWorkspace의 검증/설정 저장/backend scope binding 성공 후 적용. gh-28 저장 직후 경로와 두 문서 표시, gh-58 binding/storage 실패 rollback 검사. | 충족 |
+| 3. 실제 앱 재실행 복원 | gh-28에서 PID 5300 정상 종료·부재 확인 후 새 PID 9231의 같은 QA 프로필에서 경로·목록 자동 복원. | 충족 |
+| 4. 선택 취소 시 기존 설정 유지 | HomePage의 picker cancel/settings cancel 검사, settings.spec.ts의 picker cancel/Escape 검사에서 저장 경로와 문서 보존. | 충족 |
+| 5. 저장 경로 없음·접근 불가 안내/재선택 | gh-28 최초 QA 프로필은 경로·목록 없이 폴더 선택 안내. 실제 폴더 이동·앱 재실행 뒤 저장 경로 유지/설정 경고/재선택 복구. browser의 접근 실패·storage 실패 검사도 통과. | 충족 |
+| 6. 미저장 save/discard/cancel 보호 | useDocumentWorkspace의 공통 request 보호. HomePage와 실제 React settings browser의 세 분기에서 문서 저장·버리기·취소 후 해당 경로/본문 상태 및 전환 여부 확인. | 충족 |
+
+현재 소스의 HomePage 19개를 포함한 전체 TypeScript 236개와 settings browser 8개 검사는 gh-58에서 통과했다. gh-28에서 native app bundle을 빌드하고 네이티브 기준을 직접 확인했으며 기본 타입/build/fmt/workspace all-targets 검사도 다시 통과했다. 이 결과는 위 여섯 기준의 완료 근거다. 설정 흐름은 실제 파일 선택·재시작 근거와 자동 회귀를 함께 사용했고, browser reload를 macOS 앱 재실행으로 계산하지 않았다. gh-14 범위에 추가 미완료 항목은 없으며 ACP·MCP·사이트·명시적 관계의 검증은 해당 작업에서 계속한다.
 
 ![저장 경로 복원 후 설정 화면](assets/workspace-settings-restored.png)
 
