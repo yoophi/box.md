@@ -119,6 +119,18 @@ AW [ACP runner](../vendor/agentic-workspace/crates/acp-agent-core/src/infrastruc
 
 gh-54의 저장소 테스트는 metadata/application 구현이나 MCP/native/ACP 검증을 대신하지 않는다. UI 이벤트·dirty 보호와 grant/session 수명은 gh-52, 실제 macOS 화면과 설치 agent의 HTTP MCP 검증은 gh-53에 남아 있다.
 
+## gh-56 서비스 통합 하위 작업
+
+현재 native command는 절대 경로를 받아 하나의 `DocumentService`에서 저장과 이력을 처리한다. `WorkspaceService`는 별도로 전달받은 경로의 목록을 조회한다. gh-56은 backend가 선택한 작업 루트의 handle/generation과 이 공유 application 경로를 연결하도록 다음 순서로 진행한다.
+
+| 순서 | 작업 | 선행 | 검증 범위 |
+| --- | --- | --- | --- |
+| 1 (gh-58) | UI/scoped 경로의 같은 DocumentService·잠금·이력 공유, backend 작업 루트 및 native 경로 연결 | gh-55 | 실제 파일의 native/scoped save/revision/history, 기존 직접 열기/저장, main IPC 권한과 child 거부 |
+| 2 (gh-59) | scoped 조회·검색·permalink index·metadata·CRUD/trash/restore application | gh-58 | missing/duplicate/rename, source/body 보존, CAS·동시쓰기·복구, scan/cursor 한계와 scope 오류 |
+| 3 (gh-60) | requestId fingerprint/result dedupe, accepted mutation 소유 및 종료/루트 전환 drain | gh-59 | 재시도·다른 payload·응답 유실·용량·신규 거부·수락 작업 완료, UI와 같은 직렬화/이력 경로 |
+
+gh-56은 기존 gh-55와 마지막 하위 작업 gh-60에 의존한다. gh-50의 전체 application 완료 감사는 gh-57에 남아 있으며, MCP handler/HTTP는 gh-51, grant/ACP·UI 이벤트와 dirty 보호는 gh-52, 실제 설치 agent와 macOS 화면은 gh-53에서 검증한다. 각 하위 작업의 구현·필요 검증 후 개별 커밋과 push를 진행한다.
+
 ## gh-48 설계 단위 검증
 
 부모 gh-20의 기준1~9와 위 작업 배분을 대조했다. 기존 ACP 공유 client/core의 전달 경로와 capability 분기, 문서 service/repository, TS metadata 및 연결 저장소 소스를 읽어 재사용/확장 경계를 확인했다. 문서 두 개의 상대 링크를 검사해 누락이 없고 AW 계획 커밋의 remote branch SHA가 일치함을 확인했다. 하위 gh-49~gh-53은 모두 gh-20에 등록하며 위 선행 관계를 유지한다.
