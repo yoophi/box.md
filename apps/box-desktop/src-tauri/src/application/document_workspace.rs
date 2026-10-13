@@ -1,4 +1,5 @@
 use super::document_service::DocumentService;
+use super::scope_admission::{revoked, ScopeAdmission};
 use crate::{
     domain::{
         document::{DocumentError, DocumentSnapshot},
@@ -21,7 +22,7 @@ use std::{
 pub struct DocumentScope {
     pub generation: String,
     storage: DocumentScopeStorage,
-    active: AtomicBool,
+    admission: Arc<ScopeAdmission>,
 }
 
 #[cfg(test)]
@@ -256,14 +257,19 @@ impl DocumentScope {
         &self,
         f: impl FnOnce(&DocumentService) -> Result<T, DocumentError>,
     ) -> Result<T, DocumentError> {
-        if !self.active.load(Ordering::Acquire) {
-            return Err(DocumentError::new(
-                "scopeRevoked",
-                "이 작업 루트의 사용이 종료되었습니다.",
-            ));
-        }
-        // A call already admitted owns the pinned service through completion.
+        let _permit = self.admission.admit()?;
         f(&self.storage.service)
+    }
+
+    /// Revocation is immediate; accepted operations retain their pinned service.
+    pub fn stop_accepting(&self) {
+        self.admission.stop_accepting();
+    }
+
+    /// Call outside an admitted operation. This waits for reads, writes and history.
+    pub fn close_and_drain(&self) {
+        self.stop_accepting();
+        self.admission.drain();
     }
     pub fn read(&self, path: &str) -> Result<DocumentSnapshot, DocumentError> {
         self.admitted(|s| s.read(path))
@@ -420,6 +426,7 @@ pub struct DocumentWorkspace {
     native: DocumentService,
     factory: Box<dyn DocumentScopeFactory>,
     current: Mutex<Option<Arc<DocumentScope>>>,
+    closed: AtomicBool,
 }
 impl DocumentWorkspace {
     pub fn new(native: DocumentService, factory: impl DocumentScopeFactory + 'static) -> Self {
@@ -427,9 +434,13 @@ impl DocumentWorkspace {
             native,
             factory: Box::new(factory),
             current: Mutex::new(None),
+            closed: AtomicBool::new(false),
         }
     }
     pub fn scope(&self) -> Result<Arc<DocumentScope>, DocumentError> {
+        if self.closed.load(Ordering::Acquire) {
+            return Err(revoked());
+        }
         self.current
             .lock()
             .map_err(|_| DocumentError::new("internal", "작업 루트 잠금 오류"))?
@@ -443,6 +454,9 @@ impl DocumentWorkspace {
             .current
             .lock()
             .map_err(|_| DocumentError::new("internal", "작업 루트 잠금 오류"))?;
+        if self.closed.load(Ordering::Acquire) {
+            return Err(revoked());
+        }
         if let Some(scope) = current
             .as_ref()
             .filter(|s| !rebind && s.storage.aliases.iter().any(|p| p == path))
@@ -452,13 +466,27 @@ impl DocumentWorkspace {
         let scope = Arc::new(DocumentScope {
             generation: uuid::Uuid::new_v4().to_string(),
             storage: self.factory.open(path)?,
-            active: AtomicBool::new(true),
+            admission: ScopeAdmission::new(),
         });
         let listing = scope.native_snapshot()?;
-        if let Some(previous) = current.replace(scope) {
-            previous.active.store(false, Ordering::Release);
+        // Keep the current-root mutex until the old generation has drained.
+        // Operations release it before admission/service calls, so drain never
+        // needs a mutex held by an accepted operation.
+        if let Some(previous) = current.as_ref() {
+            previous.close_and_drain();
         }
+        *current = Some(scope);
         Ok(listing)
+    }
+
+    /// Permanent shutdown of this workspace. A new app lifetime uses a new manager.
+    /// Retain the revoked scope so native paths cannot fall back to ambient access.
+    pub fn close_and_drain(&self) {
+        let current = self.current.lock().unwrap_or_else(|e| e.into_inner());
+        self.closed.store(true, Ordering::Release);
+        if let Some(scope) = current.as_ref() {
+            scope.close_and_drain();
+        }
     }
     pub fn list(&self, path: &str) -> Result<Option<WorkspaceSnapshot>, DocumentError> {
         match self.scope() {
@@ -476,6 +504,9 @@ impl DocumentWorkspace {
             .lock()
             .map_err(|_| DocumentError::new("internal", "작업 루트 잠금 오류"))?
             .clone();
+        if self.closed.load(Ordering::Acquire) {
+            return Err(revoked());
+        }
         let Some(scope) = current else {
             return Ok(None);
         };
@@ -531,3 +562,13 @@ impl DocumentWorkspace {
         }
     }
 }
+
+impl Drop for DocumentWorkspace {
+    fn drop(&mut self) {
+        self.close_and_drain();
+    }
+}
+
+#[cfg(test)]
+#[path = "document_workspace_lifecycle_tests.rs"]
+mod lifecycle_tests;

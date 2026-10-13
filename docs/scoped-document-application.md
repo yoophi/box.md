@@ -19,7 +19,7 @@ metadata API는 JSON 객체 조회와 최상위 patch/remove다. 겹치는 key, 
 - 검색은 본문·summary·permalink의 Unicode 소문자 literal 검색이다. 임의의 다른 frontmatter 값은 검색 대상에 포함하지 않는다. excerpt는 해당 원문의 Unicode 경계를 유지하며 최대 3개, 각 240자 이하로 제한한다. 검색어는 비어 있지 않은 1024자 이하 문자열이다.
 - limit은 1~100, 기본 50이다. cursor는 generation, 전체 관찰 목록의 path/revision/metadata/warnings digest, query hash, offset에 연결된다. 파일 내용·목록·검색어·generation이 달라지면 staleCursor다. cursor에 절대 루트나 자격 증명을 넣지 않는다.
 
-조회마다 현재 파일을 읽으므로 영구 permalink index를 파일 identity 저장소로 사용하지 않는다. 이 mutex는 현재 service의 UI/scoped 검사→변경→이력을 직렬화한다. 협력하지 않는 외부 editor가 scan과 공개 사이에 쓰는 것을 전역 원자 transaction으로 보장하지 않으며, 감지한 revision 변경은 conflict다. 같은 루트의 generation 전환·이미 수락한 작업 drain은 gh-60의 책임이다.
+조회마다 현재 파일을 읽으므로 영구 permalink index를 파일 identity 저장소로 사용하지 않는다. 이 mutex는 현재 service의 UI/scoped 검사→변경→이력을 직렬화한다. 협력하지 않는 외부 editor가 scan과 공개 사이에 쓰는 것을 전역 원자 transaction으로 보장하지 않으며, 감지한 revision 변경은 conflict다. gh-62의 [scope 수락과 종료 대기](document-scope-lifecycle.md)는 generation 전환/종료에서 수락한 UI/scoped 호출을 drain한다. requestId와 서버 소유 mutation은 gh-63에서 연결한다.
 
 ## 삭제·복원과 이력
 

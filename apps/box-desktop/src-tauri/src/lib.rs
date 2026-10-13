@@ -285,6 +285,11 @@ pub fn run() {
         .expect("error while building box.md")
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
+                if let Some(documents) =
+                    app.try_state::<application::document_workspace::DocumentWorkspace>()
+                {
+                    documents.close_and_drain();
+                }
                 if let Some(shell) =
                     app.try_state::<infrastructure::workbench_shell::WorkbenchShell>()
                 {
