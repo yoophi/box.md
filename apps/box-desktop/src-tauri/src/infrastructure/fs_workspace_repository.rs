@@ -72,6 +72,8 @@ impl WorkspaceRepository for FsWorkspaceRepository {
             path: root.to_string_lossy().into(),
             documents,
             truncated,
+            warnings: Vec::new(),
+            generation: None,
         })
     }
 }

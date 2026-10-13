@@ -121,7 +121,7 @@ gh-54의 저장소 테스트는 metadata/application 구현이나 MCP/native/ACP
 
 ## gh-56 서비스 통합 하위 작업
 
-현재 native command는 절대 경로를 받아 하나의 `DocumentService`에서 저장과 이력을 처리한다. `WorkspaceService`는 별도로 전달받은 경로의 목록을 조회한다. gh-56은 backend가 선택한 작업 루트의 handle/generation과 이 공유 application 경로를 연결하도록 다음 순서로 진행한다.
+gh-58에서 [backend 작업 루트와 같은 DocumentService 공유](document-workspace-service.md)를 구현했다. native 절대 경로를 scope 상대 경로에 연결하며 기존 저장·이력 키를 유지한다. 기존 `WorkspaceService`는 native preview, 선택된 루트의 refresh는 capability 저장소를 사용한다. gh-56은 backend가 선택한 작업 루트의 handle/generation과 이 공유 application 경로를 연결하도록 다음 순서로 진행한다.
 
 | 순서 | 작업 | 선행 | 검증 범위 |
 | --- | --- | --- | --- |

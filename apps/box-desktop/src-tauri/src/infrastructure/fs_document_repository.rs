@@ -15,7 +15,7 @@ fn io_error(error: impl std::fmt::Display) -> DocumentError {
     DocumentError::new("io", error.to_string())
 }
 
-fn checked_path(path: &str) -> Result<PathBuf, DocumentError> {
+pub(crate) fn checked_path(path: &str) -> Result<PathBuf, DocumentError> {
     let path = Path::new(path);
     if !path.is_absolute()
         || !path

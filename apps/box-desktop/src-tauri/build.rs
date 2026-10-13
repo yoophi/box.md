@@ -10,6 +10,7 @@ fn main() {
             "document_history",
             "history_content",
             "list_workspace_documents",
+            "select_document_workspace",
             "list_document_comments",
             "add_document_comment",
             "list_connections",

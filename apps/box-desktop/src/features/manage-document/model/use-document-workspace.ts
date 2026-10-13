@@ -17,7 +17,7 @@ import {
   permalinkFromLink,
 } from "@/entities/document";
 import type { WorkspaceSnapshot } from "@box/contracts";
-import { listWorkspace } from "@/entities/workspace";
+import { listWorkspace, selectDocumentWorkspace } from "@/entities/workspace";
 import { isDesktop } from "@/shared/lib/runtime";
 
 type Action =
@@ -245,12 +245,25 @@ export function useDocumentWorkspace() {
                 directory: true,
               });
         if (!folder || Array.isArray(folder)) return;
-        const snapshot = await listWorkspace(folder);
+        const preview = await listWorkspace(folder);
+        let previous: string | null;
         try {
-          if (localStorage.getItem(WORKSPACE_KEY) !== snapshot.path)
-            localStorage.setItem(WORKSPACE_KEY, snapshot.path);
+          previous = localStorage.getItem(WORKSPACE_KEY);
+          if (previous !== preview.path) localStorage.setItem(WORKSPACE_KEY, preview.path);
         } catch {
           throw new Error("작업 디렉터리 설정을 저장하지 못했습니다. 기존 문서와 설정을 유지합니다.");
+        }
+        let snapshot: WorkspaceSnapshot;
+        try {
+          snapshot = await selectDocumentWorkspace(preview.path, action === "directory");
+        } catch (cause) {
+          try {
+            if (previous === null) localStorage.removeItem(WORKSPACE_KEY);
+            else localStorage.setItem(WORKSPACE_KEY, previous);
+          } catch {
+            throw new Error("작업 루트를 열지 못했고 설정 복원에도 실패했습니다. 기존 문서는 유지됩니다.");
+          }
+          throw cause;
         }
         workspaceRef.current = snapshot;
         setWorkspace(snapshot);
@@ -265,6 +278,7 @@ export function useDocumentWorkspace() {
         if (!root) throw new Error("먼저 작업 디렉토리를 선택해주세요.");
         const listed = await listWorkspace(root);
         if (listed.truncated) throw new Error("문서 목록이 너무 커 전체 고정 링크를 확인할 수 없습니다. 더 작은 작업 디렉토리를 선택해주세요.");
+        if (listed.warnings?.length) throw new Error("문서 목록을 완전히 조회하지 못해 고정 링크를 확인할 수 없습니다. 폴더 접근 권한을 확인해주세요.");
         const path = await resolvePermalink(listed.documents, action.path, readDocument);
         const snapshot = await readDocument(path);
         setWorkspace(listed);

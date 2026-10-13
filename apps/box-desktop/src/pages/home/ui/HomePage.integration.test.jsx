@@ -25,7 +25,7 @@ vi.mock("@tauri-apps/api/core", () => ({
         expiresAt: new Date(Date.now() + 3600_000).toISOString(),
         incarnation: "inc-1",
       };
-    if (command === "list_workspace_documents")
+    if (command === "list_workspace_documents" || command === "select_document_workspace")
       return {
         path: bridge.host.workDir,
         documents: [

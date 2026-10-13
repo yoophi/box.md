@@ -24,6 +24,8 @@ export interface WorkspaceSnapshot {
   path: string;
   documents: WorkspaceDocument[];
   truncated: boolean;
+  generation?: string;
+  warnings?: Array<{ path: string | null; code: string }>;
 }
 
 export interface HistoryEntry { id: string; savedAt: string; }

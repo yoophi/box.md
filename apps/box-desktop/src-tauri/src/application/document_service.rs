@@ -5,11 +5,13 @@ use crate::{
     },
     ports::{document_history::DocumentHistory, document_repository::DocumentRepository},
 };
-use std::sync::Mutex;
+use box_document_store::{ScopedDocumentRepository, ScopedListing};
+use std::sync::{Arc, Mutex};
 
 struct DocumentStore {
     repository: Box<dyn DocumentRepository>,
     history: Box<dyn DocumentHistory>,
+    scoped: Option<Arc<dyn ScopedDocumentRepository>>,
 }
 pub struct DocumentService {
     store: Mutex<DocumentStore>,
@@ -23,8 +25,28 @@ impl DocumentService {
             store: Mutex::new(DocumentStore {
                 repository: Box::new(repository),
                 history: Box::new(history),
+                scoped: None,
             }),
         }
+    }
+    pub fn scoped(
+        repository: Arc<dyn ScopedDocumentRepository>,
+        history: impl DocumentHistory + 'static,
+    ) -> Self {
+        Self {
+            store: Mutex::new(DocumentStore {
+                repository: Box::new(SharedScopedRepository(repository.clone())),
+                history: Box::new(history),
+                scoped: Some(repository),
+            }),
+        }
+    }
+    pub fn listing(&self) -> Result<ScopedListing, DocumentError> {
+        self.lock()?
+            .scoped
+            .as_ref()
+            .ok_or_else(|| DocumentError::new("workspaceUnavailable", "작업 루트를 선택해주세요."))?
+            .list()
     }
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, DocumentStore>, DocumentError> {
         self.store
@@ -66,6 +88,24 @@ impl DocumentService {
             saved.history_warning = Some(error.message);
         }
         Ok(saved)
+    }
+}
+
+struct SharedScopedRepository(Arc<dyn ScopedDocumentRepository>);
+impl DocumentRepository for SharedScopedRepository {
+    fn read(&self, path: &str) -> Result<DocumentSnapshot, DocumentError> {
+        self.0.read(path)
+    }
+    fn revision(&self, path: &str) -> Result<Option<String>, DocumentError> {
+        self.0.revision(path)
+    }
+    fn save(
+        &self,
+        path: &str,
+        content: &str,
+        expected: Option<&str>,
+    ) -> Result<DocumentSnapshot, DocumentError> {
+        self.0.save(path, content, expected)
     }
 }
 

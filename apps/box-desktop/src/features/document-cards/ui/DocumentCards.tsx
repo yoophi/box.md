@@ -38,5 +38,6 @@ export function DocumentCards({ workspace, disabled, onOpen, onClose }: {
     {!filtered.length && <p className="panel-empty">{query ? "검색 결과가 없습니다." : "아직 Markdown 문서가 없습니다."}</p>}
     <footer className="cards-pagination"><button disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>이전</button><span>{currentPage + 1} / {lastPage + 1}</span><button disabled={currentPage >= lastPage} onClick={() => setPage(currentPage + 1)}>다음</button></footer>
     {workspace.truncated && <p className="frontmatter-note">작업 디렉토리의 일부 문서만 표시됩니다.</p>}
+    {Boolean(workspace.warnings?.length) && <p className="frontmatter-note">일부 폴더를 조회하지 못했습니다. 접근 권한을 확인해주세요.</p>}
   </section>;
 }

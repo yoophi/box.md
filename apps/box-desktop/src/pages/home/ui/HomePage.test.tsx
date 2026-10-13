@@ -10,15 +10,19 @@ import { act } from "@testing-library/react";
 
 vi.mock("@/entities/agent-chat", () => ({ createChatClient: vi.fn() }));
 
-const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]> }));
+const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]> }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, args: Record<string, unknown>) => {
   if (command.startsWith("site_browser_")) return { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false };
   if (command === "list_connections") return { version: 1, entities: [], memberships: [] };
-  if (command === "list_workspace_documents") {
+  if (command === "list_workspace_documents" || command === "select_document_workspace") {
     if (native.brokenRoots.includes(String(args.path))) throw new Error("작업 디렉터리에 접근할 수 없습니다.");
-    if (args.path !== "/workspace") return { path: args.path, documents: [{ path: `${args.path}/other.md`, name: "other.md", relativePath: "other.md" }], truncated: false };
-    return { path: "/workspace", documents: [{ path: native.path, name: native.path.split("/").pop(), relativePath: native.path.split("/").pop() }, ...(native.targetContent === null ? [] : [{ path: "/workspace/target.md", name: "target.md", relativePath: "target.md" }])], truncated: false };
+    if (command === "select_document_workspace") {
+      if (native.selectionFailures.includes(String(args.path))) throw new Error("작업 루트 연결 실패");
+      native.selectedRoot = String(args.path);
+    }
+    if (args.path !== "/workspace") return { path: args.path, documents: [{ path: `${args.path}/other.md`, name: "other.md", relativePath: "other.md" }], truncated: false, warnings: native.workspaceWarnings };
+    return { path: "/workspace", documents: [{ path: native.path, name: native.path.split("/").pop(), relativePath: native.path.split("/").pop() }, ...(native.targetContent === null ? [] : [{ path: "/workspace/target.md", name: "target.md", relativePath: "target.md" }])], truncated: false, warnings: native.workspaceWarnings };
   }
   if (command === "open_document") return { path: args.path, content: args.path === "/workspace/target.md" ? native.targetContent : native.content, revision: String(native.revision) };
   if (command === "save_document") {
@@ -50,10 +54,33 @@ beforeEach(() => {
   localStorage.clear(); localStorage.setItem("box.md.workspace-path", "/workspace");
   native.content = "---\nsummary: 원래 요약\ncustom: {enabled: true}\n---\n# 문서\n\n안녕 🌱\n";
   native.revision = 1; native.versions = []; native.path = "/workspace/note.md"; native.urls = null; native.targetContent = null; native.comments = {};
-  native.folder = null; native.brokenRoots = [];
+  native.folder = null; native.brokenRoots = []; native.selectionFailures = []; native.selectedRoot = null; native.workspaceWarnings = [];
 });
 afterEach(() => { cleanup(); restorePanelLayout(); vi.restoreAllMocks(); });
 describe("document workspace flows", () => {
+  it("shows a partial listing warning and refuses an incomplete permalink lookup", async () => {
+    native.workspaceWarnings = [{path:"unreadable",code:"io"}];
+    native.content = "---\npermalink: stable\n---\nbody";
+    native.urls = ["boxmd://document?permalink=stable"];
+    render(<HomePage />);
+    await screen.findByText("문서 목록을 완전히 조회하지 못해 고정 링크를 확인할 수 없습니다. 폴더 접근 권한을 확인해주세요.");
+    expect(screen.getByText("일부 폴더를 조회하지 못했습니다. 접근 권한을 확인해주세요.")).toBeTruthy();
+    expect(screen.queryByText("고정 링크로 문서를 열었습니다.")).toBeNull();
+  });
+  it("restores the preference and document when backend scope binding fails", async () => {
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    const original = native.content;
+    await user.click(screen.getByRole("button", { name: "설정" }));
+    native.folder = "/new-workspace"; native.selectionFailures = ["/new-workspace"];
+    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
+    await user.click(screen.getByRole("button", { name: "설정 저장" }));
+    await screen.findByText("작업 루트 연결 실패");
+    expect(localStorage.getItem("box.md.workspace-path")).toBe("/workspace");
+    expect(native.selectedRoot).toBe("/workspace");
+    expect(native.content).toBe(original);
+    expect(screen.getByRole("button", { name: /note.md/ })).toBeTruthy();
+  });
   it.each(["cancel", "discard", "save"] as const)("protects unsaved edits when applying a settings directory: %s", async (choice) => {
     const original = native.content, draft = original + "\n작업 디렉터리 변경 전 초안";
     const user = userEvent.setup(); render(<HomePage />);
@@ -140,6 +167,7 @@ describe("document workspace flows", () => {
     await screen.findByText(/작업 디렉터리 설정을 저장하지 못했습니다/);
     failStorage.mockRestore();
     expect(localStorage.getItem("box.md.workspace-path")).toBe("/workspace");
+    expect(native.selectedRoot).toBe("/workspace");
     expect((source as HTMLTextAreaElement).value).toBe(draft);
     expect(screen.getByText("저장하지 않은 변경사항")).toBeTruthy();
     expect(screen.getByRole("button", { name: /note.md/ })).toBeTruthy();

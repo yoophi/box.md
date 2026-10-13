@@ -150,6 +150,9 @@ export function HomePage() {
               목록이 일부 표시됩니다. 더 작은 작업 폴더를 선택해주세요.
             </p>
           )}
+          {Boolean(folder?.warnings?.length) && (
+            <p className="sidebar-empty">일부 폴더를 조회하지 못했습니다. 접근 권한을 확인해주세요.</p>
+          )}
         </section>
         <p className="sidebar-footer">
           수집 · 기록 · 연결

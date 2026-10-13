@@ -23,6 +23,120 @@ mod browser_permission_tests {
     use super::*;
     use tauri::test::{get_ipc_response, mock_builder, INVOKE_KEY};
     #[test]
+    fn workspace_binding_and_file_access_use_the_registered_main_permissions() {
+        let root = tempfile::tempdir().unwrap();
+        let history = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("note.md"), "initial").unwrap();
+        let app = mock_builder()
+            .manage(application::document_workspace::DocumentWorkspace::new(
+                application::document_service::DocumentService::new(
+                    infrastructure::fs_document_repository::FsDocumentRepository,
+                    infrastructure::git_document_history::GitDocumentHistory::new(
+                        history.path().into(),
+                    ),
+                ),
+                infrastructure::document_scope_factory::FsDocumentScopeFactory::new(
+                    history.path().into(),
+                ),
+            ))
+            .manage(application::workspace_service::WorkspaceService::new(
+                infrastructure::fs_workspace_repository::FsWorkspaceRepository,
+            ))
+            .invoke_handler(tauri::generate_handler![
+                inbound::workspace_commands::select_document_workspace,
+                inbound::workspace_commands::list_workspace_documents,
+                inbound::document_commands::open_document,
+                inbound::document_commands::save_document,
+                inbound::document_commands::document_history
+            ])
+            .build(app_context())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let child = Box::new(
+            app.get_window("main")
+                .unwrap()
+                .add_child(
+                    tauri::webview::WebviewBuilder::new(
+                        "site-browser",
+                        tauri::WebviewUrl::External("https://example.com".parse().unwrap()),
+                    ),
+                    tauri::LogicalPosition::new(0, 0),
+                    tauri::LogicalSize::new(400, 400),
+                )
+                .unwrap(),
+        );
+        let request =
+            |cmd: &str, body: serde_json::Value, origin: &str| tauri::webview::InvokeRequest {
+                cmd: cmd.into(),
+                callback: tauri::ipc::CallbackFn(0),
+                error: tauri::ipc::CallbackFn(1),
+                url: origin.parse().unwrap(),
+                body: tauri::ipc::InvokeBody::Json(body),
+                headers: Default::default(),
+                invoke_key: INVOKE_KEY.into(),
+            };
+        let root_path = root.path().to_str().unwrap();
+        let selected: serde_json::Value = get_ipc_response(
+            &main,
+            request(
+                "select_document_workspace",
+                serde_json::json!({"path":root_path}),
+                "tauri://localhost/",
+            ),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+        assert!(selected["generation"].is_string());
+        let path = selected["documents"][0]["path"].as_str().unwrap();
+        let opened: serde_json::Value = get_ipc_response(
+            &main,
+            request(
+                "open_document",
+                serde_json::json!({"path":path}),
+                "tauri://localhost/",
+            ),
+        )
+        .unwrap()
+        .deserialize()
+        .unwrap();
+        get_ipc_response(&main,request("save_document",serde_json::json!({"path":path,"content":"from IPC","expectedRevision":opened["revision"]}),"tauri://localhost/")).unwrap();
+        assert_eq!(
+            app.state::<application::document_workspace::DocumentWorkspace>()
+                .scope()
+                .unwrap()
+                .read("note.md")
+                .unwrap()
+                .content,
+            "from IPC"
+        );
+        for origin in [
+            "https://example.com/",
+            "tauri://localhost/",
+            "http://localhost:1430/",
+        ] {
+            for cmd in [
+                "select_document_workspace",
+                "open_document",
+                "save_document",
+                "document_history",
+                "list_workspace_documents",
+            ] {
+                let denied = get_ipc_response(
+                    &child,
+                    request(cmd, serde_json::json!({"path":root_path}), origin),
+                )
+                .unwrap_err();
+                assert!(
+                    denied.as_str().unwrap().contains("not allowed"),
+                    "{cmd}: {denied}"
+                );
+            }
+        }
+    }
+    #[test]
     fn compiled_app_permissions_isolate_child_webviews_even_on_a_local_origin() {
         let app = mock_builder()
             .manage(application::AppInfoService::new(
@@ -122,11 +236,13 @@ pub fn run() {
                     app.path().app_data_dir()?.join("comments"),
                 ),
             ));
-            app.manage(application::document_service::DocumentService::new(
-                infrastructure::fs_document_repository::FsDocumentRepository,
-                infrastructure::git_document_history::GitDocumentHistory::new(
-                    app.path().app_data_dir()?.join("history"),
+            let history = app.path().app_data_dir()?.join("history");
+            app.manage(application::document_workspace::DocumentWorkspace::new(
+                application::document_service::DocumentService::new(
+                    infrastructure::fs_document_repository::FsDocumentRepository,
+                    infrastructure::git_document_history::GitDocumentHistory::new(history.clone()),
                 ),
+                infrastructure::document_scope_factory::FsDocumentScopeFactory::new(history),
             ));
             Ok(())
         })
@@ -152,7 +268,8 @@ pub fn run() {
             inbound::document_commands::document_revision,
             inbound::document_commands::document_history,
             inbound::document_commands::history_content,
-            inbound::workspace_commands::list_workspace_documents
+            inbound::workspace_commands::list_workspace_documents,
+            inbound::workspace_commands::select_document_workspace
         ])
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {

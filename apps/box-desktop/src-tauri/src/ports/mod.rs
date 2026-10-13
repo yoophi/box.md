@@ -10,4 +10,5 @@ pub mod document_history;
 
 pub mod comment_repository;
 pub mod connection_repository;
+pub mod document_scope_factory;
 pub mod site_browser_host;

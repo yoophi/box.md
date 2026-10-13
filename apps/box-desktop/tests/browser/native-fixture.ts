@@ -131,7 +131,7 @@ export async function seedWorkspace(
             if (persistConnections && command !== "list_connections") localStorage.setItem(connectionKey, JSON.stringify(graph));
             return structuredClone(graph);
           }
-          if (command === "list_workspace_documents") {
+          if (command === "list_workspace_documents" || command === "select_document_workspace") {
             if (state.invalidRoots.includes(path))
               throw new Error("작업 디렉터리에 접근할 수 없습니다.");
             return {

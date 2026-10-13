@@ -22,6 +22,7 @@
     "allow-document-history",
     "allow-history-content",
     "allow-list-workspace-documents",
+    "allow-select-document-workspace",
     "allow-list-document-comments",
     "allow-add-document-comment",
     "allow-list-connections",
