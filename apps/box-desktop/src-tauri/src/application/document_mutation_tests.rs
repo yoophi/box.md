@@ -102,6 +102,73 @@ fn duplicate(source: &DocumentSnapshot, content: Option<&str>) -> DocumentMutati
 }
 
 #[test]
+fn public_json_creation_and_permalink_duplication_share_native_results_and_files() {
+    let root = tempfile::tempdir().unwrap();
+    let history = tempfile::tempdir().unwrap();
+    let ids = ["261013200000-00000000", "261013200000-00000001"];
+    let (scope, remaining) =
+        generated_scope(root.path(), history.path(), &ids, 128, 64 * 1024 * 1024);
+    let input = json!({"operation":"create_document","content":"---\npermalink: discarded-input\ntitle: JSON 문서\n---\n본문"});
+    let created = data(
+        scope
+            .submit_mutation(
+                "json-create",
+                serde_json::from_value(input.clone()).unwrap(),
+            )
+            .unwrap(),
+    );
+    assert_eq!(created["document"]["path"], format!("{}.md", ids[0]));
+    assert_eq!(created["document"]["permalink"], ids[0]);
+    let native = scope
+        .native_created_result(
+            scope
+                .submit_mutation("json-create", serde_json::from_value(input).unwrap())
+                .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        native["document"]["content"],
+        created["document"]["content"]
+    );
+    assert_eq!(
+        native["document"]["revision"],
+        created["document"]["revision"]
+    );
+    assert_eq!(
+        Path::new(native["document"]["path"].as_str().unwrap()),
+        root.path()
+            .canonicalize()
+            .unwrap()
+            .join(format!("{}.md", ids[0]))
+    );
+    assert_eq!(created["document"]["path"], format!("{}.md", ids[0])); // Native conversion never mutates the cached common result.
+    assert_eq!(remaining.lock().unwrap().len(), 1);
+    let duplicate: DocumentMutation = serde_json::from_value(json!({
+        "operation":"duplicate_document", "document":{"permalink":ids[0]},
+        "expectedRevision":created["document"]["revision"]
+    }))
+    .unwrap();
+    let copied = data(scope.submit_mutation("json-copy", duplicate).unwrap());
+    assert_eq!(copied["document"]["path"], format!("{}.md", ids[1]));
+    assert_eq!(
+        box_document_store::document_property(
+            copied["document"]["content"].as_str().unwrap(),
+            "title"
+        )
+        .unwrap(),
+        "JSON 문서 사본"
+    );
+    for result in [&created, &copied] {
+        let path = result["document"]["path"].as_str().unwrap();
+        assert_eq!(
+            fs::read_to_string(root.path().join(path)).unwrap(),
+            result["document"]["content"]
+        );
+        assert_eq!(scope.history(path).unwrap().len(), 1);
+    }
+}
+
+#[test]
 fn generated_files_retry_file_and_permalink_collisions_and_keep_the_first_id_on_retry() {
     let root = tempfile::tempdir().unwrap();
     let history = tempfile::tempdir().unwrap();
