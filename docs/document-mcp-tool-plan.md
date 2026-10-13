@@ -2,6 +2,8 @@
 
 2026-10-13 기준 AW vendor pin `9ee73897ec04476d145536881381b5da313ea8cc`의 `local-mcp-server`를 소비한다. 공용 host의 factory/authorize/principal SPI와 rmcp 3.5.1 예제·실제 HTTP 테스트를 읽어 아래 구현 경계를 정했다. AW vendor와 사용자의 AgentChatSheet 변경은 수정하지 않는다.
 
+같은 날 gh-72에서 최신 AW main `760415c497f41081cba73a011981f2159c118de0`로 vendor를 업데이트했다. 위 공유 MCP/client/UI source는 두 pin에서 동일하며 구현 경계는 유지한다. [업데이트 검증](aw-vendor-upgrade.md)을 따른다.
+
 ## 순서와 완료 조건
 
 | 순서 | 단위 | 완료 증거 |
