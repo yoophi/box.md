@@ -2,6 +2,8 @@
 
 2026-10-13 기준 구현 계약과 작업 순서다. 문서 도구는 아직 구현되지 않았다. gh-49에서 [공용 HTTP 호스트 기반](document-mcp-host-integration.md)을 구현했으며 문서 handler·native grant·ACP 연동은 후속 작업으로 남아 있다. 부모 gh-20의 수용 기준 1~9와 기존 gh-3 의존성을 유지한다. 공식 규격·버전 근거는 [프로토콜 조사](document-mcp-protocol-research.md)를 따른다.
 
+최신 사용자 요구는 **gh-64**에 등록했다. 아래 최초 설계의 UUID 생성·다른 이름 저장 문구는 새 요구로 대체한다. 새 문서와 복제는 로컬 생성일 `yyMMddHHmmss`와 CSPRNG hex 8자를 `-`로 연결한 새 permalink를 사용하고 `{permalink}.md`로 생성한다. 다른 이름 저장을 제거하며 복제 title은 `기존 title 사본`이다. gh-64는 gh-56에 의존하고 gh-51의 선행 작업이다. 충돌 UI도 다른 이름 저장 대신 이 정책에 맞춰야 한다. 현행 application 통합 판정은 [gh-56 감사](scoped-document-integration-audit.md), gh-50 전체 판정은 gh-57에서 확인한다.
+
 ## 현재 코드와 재사용 경계
 
 | 현재 구현 | 재사용 또는 필요한 확장 |

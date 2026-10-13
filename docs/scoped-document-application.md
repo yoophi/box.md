@@ -1,12 +1,12 @@
 # 작업 루트 문서 application (gh-59)
 
-`DocumentScope`는 이미 선택된 directory handle과 generation에 연결된 조회·검색·생성·변경·metadata·복구 삭제 API를 제공한다. 루트 인자를 받지 않으며 응답에는 상대 문서 경로만 넣는다. 모든 호출은 gh-58의 같은 `DocumentService` mutex 안에서 실행하고 기존 native UI의 저장·revision·Git 이력을 공유한다. MCP handler와 requestId/task 수명은 각각 gh-51, gh-60에서 연결한다.
+`DocumentScope`는 이미 선택된 directory handle과 generation에 연결된 조회·검색·생성·변경·metadata·복구 삭제 API를 제공한다. 루트 인자를 받지 않으며 응답에는 상대 문서 경로만 넣는다. 모든 호출은 gh-58의 같은 `DocumentService` mutex 안에서 실행하고 기존 native UI의 저장·revision·Git 이력을 공유한다. requestId/task 수명은 gh-60/62/63에서 구현했다. 현재 부모 통합 판정과 후속 범위는 [gh-56 감사](scoped-document-integration-audit.md)를 따른다. MCP handler는 gh-51에서 연결한다.
 
 ## 문서 식별과 저장
 
 `DocumentRef`는 `{path: string}` 또는 `{permalink: string}` 중 하나이며 둘 다 지정하거나 알 수 없는 필드를 넣으면 역직렬화가 실패한다. path는 기존 permalink 없는 문서를 다룬다. permalink는 요청마다 현재 파일 목록과 metadata에서 정확히 한 문서를 찾으며, 이동·개명 후에도 같은 ID로 조회한다. 없으면 notFound, 중복이면 duplicatePermalink, ID 자체가 비었거나 문서의 ID를 요구했는데 없으면 missingPermalink다. 마지막 read에서도 ID가 일치하는지 확인한다.
 
-생성은 permalink가 없거나 null/빈 문자열이면 lossless adapter로 UUID를 추가하고 filesystem no-clobber 저장을 사용한다. update/metadata/delete는 비어 있지 않은 expectedRevision이 필요하다. 읽은 현재 revision과 저장소의 최종 CAS를 모두 확인하고 실패한 변경은 파일·이력을 갱신하지 않는다.
+현재 생성 구현은 permalink가 없거나 null/빈 문자열이면 lossless adapter로 UUID를 추가하고 filesystem no-clobber 저장을 사용한다. 최신 사용자 요구의 생성일/난수 ID·ID 파일명·복제 정책으로 교체하는 작업은 gh-64에 등록되어 아직 미완료다. update/metadata/delete는 비어 있지 않은 expectedRevision이 필요하다. 읽은 현재 revision과 저장소의 최종 CAS를 모두 확인하고 실패한 변경은 파일·이력을 갱신하지 않는다.
 
 UI의 scoped save를 포함해 후보 frontmatter의 permalink/summary를 한 줄 문자열로 검증한다. 후보 ID가 있으면 해당 문서 자체를 제외한 현재 목록에서 중복을 검사한다. 불완전한 scan으로 고유성을 증명하지 않으며 workspaceUnavailable로 쓰기를 거부한다. 외부에서 중복이나 잘못된 metadata가 생긴 대상은 명시적 path와 올바른 revision으로 새 유효 내용을 저장해 수정할 수 있다. 선택 루트 밖의 명시적 native 직접 편집 흐름은 기존 서비스를 사용한다.
 
@@ -41,6 +41,6 @@ cargo fmt --all -- --check
 CARGO_INCREMENTAL=0 cargo check --workspace --all-targets
 ```
 
-이번 application 검사는 실제 macOS 창이나 실제 설치 agent의 MCP 도구 사용을 대체하지 않는다. 실행 중인 NativeQA는 이 변경 전 번들이며 재빌드하지 않았다. gh-60의 requestId/accepted-task/drain, gh-57의 전체 감사, gh-51~gh-53의 HTTP MCP·native grant·ACP/UI 이벤트 및 실제 사용 검증은 계속 남아 있다.
+이번 application 검사는 실제 macOS 창이나 실제 설치 agent의 MCP 도구 사용을 대체하지 않는다. 실행 중인 NativeQA는 이 변경 전 번들이며 재빌드하지 않았다. requestId/accepted-task/drain은 후속 gh-60에서 구현·감사를 완료했다. gh-57의 전체 감사, gh-64의 생성·복제, gh-51~gh-53의 HTTP MCP·native grant·ACP/UI 이벤트 및 실제 사용 검증은 계속 남아 있다.
 
 최종 실행 결과는 Rust 앱 43개 통과(helper 1개 ignored), 저장소 파일 시스템 15개와 metadata 16개 통과, 전체 TypeScript 236개 통과다. 타입 검사·frontend build·Rust format·workspace/all-targets check도 통과했다. gh-51에서 아직 연결하지 않은 새 application API의 dead-code 경고와 기존 AW 경고는 남아 있다. 검사 로그는 `/tmp/box-md-gh59-{native-tests,store-tests,ts-tests,types,build,fmt,rust}.log`에 기록했다.
