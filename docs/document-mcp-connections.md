@@ -44,3 +44,11 @@ TCP 유실 검사는 결과 reservation 뒤 profile persist 이전에 exclusive 
 이 단위는 실제 loopback와 파일 검증이다. native grant/ACP 주입·main UI 외부 변경 반영은 gh-52, 설치 agent/native 창 전체 감사는 gh-53이다. 부모 gh-51의 전체 HTTP/auth/범위 감사는 gh-71에서 진행한다.
 
 관련 source: [connection reservation](../apps/box-desktop/src-tauri/src/application/connection_service.rs), [공통 mutation](../apps/box-desktop/src-tauri/src/application/document_mutations.rs), [실행](../apps/box-desktop/src-tauri/src/application/prepared_mutations.rs), [scope factory](../apps/box-desktop/src-tauri/src/infrastructure/document_scope_factory.rs), [profile 주입](../apps/box-desktop/src-tauri/src/lib.rs), [HTTP 검사](../apps/box-desktop/src-tauri/src/inbound/document_mcp/tests.rs), [capacity 검사](../apps/box-desktop/src-tauri/src/application/document_mutation_tests.rs).
+
+## gh-70 전체 기준 감사
+
+하위 gh-73과 gh-74 구현을 부모 기준에 대조하고 추가 실제 HTTP 회귀를 실행했다. 중복 permalink membership은 duplicate로 표시하고 임의 document를 반환하지 않는다. 같은 ID를 document 필터로 요청하면 duplicatePermalink를 반환한다. 파일을 이동하면 새 상대 경로를 해석하며, 잘못된 frontmatter로 목록이 불완전하면 error와 warnings를 반환한다. ID 없는 문서 필터는 missingPermalink다. 이 모든 조회에서 원래 connections.json byte가 유지된다.
+
+추가 회귀를 포함한 결과는 HTTP 13개 통과와 독립 JSON Schema 검증 88응답/15도구, 앱 Rust 85개 통과(helper 1개 ignored 및 subprocess 3회 통과)다. cargo fmt와 workspace all-targets도 통과했다. 로그는 `/tmp/box-md-gh70-{http-audit,native-audit,fmt,rust}.log`에 있다. 추가 변경은 회귀 테스트와 완료 근거이며 production API와 frontend는 변경하지 않았다. gh-74의 types/build와 gh-73의 TypeScript 260개 검증 근거를 유지한다.
+
+위 기준표와 이 추가 회귀로 gh-70의 본문 링크 및 독립 연결 도구 범위를 검증했다. 전체 HTTP 인증·범위 감사 gh-71, native host/grant·ACP·UI 갱신 gh-52, 설치 agent/native 감사 gh-53은 후속 작업으로 남는다.

@@ -1131,3 +1131,70 @@ async fn root_switch_drains_a_disconnected_accepted_connection_and_rejects_new_w
     );
     f.stop().await;
 }
+
+#[tokio::test]
+async fn connection_membership_resolution_never_selects_duplicate_or_partial_targets() {
+    let f = Fixture::new().await;
+    let state = f.connections.create("audit").unwrap();
+    f.connections
+        .attach(&state.entities[0].id, "legacy-0")
+        .unwrap();
+    let before = fs::read(f.connection_dir.path().join("connections.json")).unwrap();
+    fs::copy(
+        f.roots[0].path().join("legacy.md"),
+        f.roots[0].path().join("duplicate.md"),
+    )
+    .unwrap();
+    let duplicate = f.call("list_connections", json!({})).await;
+    assert_eq!(
+        duplicate["data"]["connections"]["memberships"][0]["state"],
+        "duplicate"
+    );
+    assert!(duplicate["data"]["connections"]["memberships"][0]
+        .get("document")
+        .is_none());
+    assert_eq!(
+        f.call(
+            "list_connections",
+            json!({"document":{"permalink":"legacy-0"}})
+        )
+        .await["error"]["code"],
+        "duplicatePermalink"
+    );
+    fs::remove_file(f.roots[0].path().join("duplicate.md")).unwrap();
+    fs::rename(
+        f.roots[0].path().join("legacy.md"),
+        f.roots[0].path().join("moved.md"),
+    )
+    .unwrap();
+    assert_eq!(
+        f.call("list_connections", json!({})).await["data"]["connections"]["memberships"][0]
+            ["document"]["path"],
+        "moved.md"
+    );
+    fs::write(
+        f.roots[0].path().join("bad.md"),
+        "---\nbroken: [\n---\nbody",
+    )
+    .unwrap();
+    let partial = f.call("list_connections", json!({})).await;
+    assert_eq!(
+        partial["data"]["connections"]["memberships"][0]["state"],
+        "error"
+    );
+    assert!(!partial["data"]["warnings"].as_array().unwrap().is_empty());
+    assert!(partial["data"]["connections"]["memberships"][0]
+        .get("document")
+        .is_none());
+    fs::write(f.roots[0].path().join("plain.md"), "without ID").unwrap();
+    assert_eq!(
+        f.call("list_connections", json!({"document":{"path":"plain.md"}}))
+            .await["error"]["code"],
+        "missingPermalink"
+    );
+    assert_eq!(
+        fs::read(f.connection_dir.path().join("connections.json")).unwrap(),
+        before
+    );
+    f.stop().await;
+}
