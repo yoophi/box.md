@@ -335,6 +335,12 @@ impl DocumentScope {
     pub fn get_metadata(&self, reference: &DocumentRef) -> Result<MetadataSnapshot, DocumentError> {
         self.admitted(|s| s.get_metadata(reference))
     }
+    pub fn document_links(
+        &self,
+        reference: &DocumentRef,
+    ) -> Result<serde_json::Value, DocumentError> {
+        self.admitted(|s| s.document_links(reference))
+    }
     pub fn create_document(
         &self,
         path: &str,

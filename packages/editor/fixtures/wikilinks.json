@@ -1,0 +1,192 @@
+[
+  {
+    "name": "plain",
+    "body": "앞 [[stable]] 뒤",
+    "links": [
+      {
+        "permalink": "stable",
+        "alias": null,
+        "raw": "[[stable]]"
+      }
+    ]
+  },
+  {
+    "name": "unicode-alias",
+    "body": "[[ stable | 별칭 🌱 ]]",
+    "links": [
+      {
+        "permalink": "stable",
+        "alias": "별칭 🌱",
+        "raw": "[[ stable | 별칭 🌱 ]]"
+      }
+    ]
+  },
+  {
+    "name": "opaque-id-extra-pipe",
+    "body": "[[/notes/한글 ?#&|표시 | 추가]]",
+    "links": [
+      {
+        "permalink": "/notes/한글 ?#&",
+        "alias": "표시 | 추가",
+        "raw": "[[/notes/한글 ?#&|표시 | 추가]]"
+      }
+    ]
+  },
+  {
+    "name": "marks-lists-table",
+    "body": "**[[one]]** 그리고 [[two | 이름]]\n\n- [[three]]\n\n| 링크 |\n| --- |\n| [[four]] |",
+    "links": [
+      {
+        "permalink": "one",
+        "alias": null,
+        "raw": "[[one]]"
+      },
+      {
+        "permalink": "two",
+        "alias": "이름",
+        "raw": "[[two | 이름]]"
+      },
+      {
+        "permalink": "three",
+        "alias": null,
+        "raw": "[[three]]"
+      },
+      {
+        "permalink": "four",
+        "alias": null,
+        "raw": "[[four]]"
+      }
+    ]
+  },
+  {
+    "name": "code-escapes",
+    "body": "`[[inline]]`\n\n```md\n[[fenced | 別名]]\n```\n\n\\[[escaped]]\n\n[[actual]]",
+    "links": [
+      {
+        "permalink": "actual",
+        "alias": null,
+        "raw": "[[actual]]"
+      }
+    ]
+  },
+  {
+    "name": "tilde-indented-code",
+    "body": "~~~\n[[tilde]]\n~~~\n\n    [[indented]]\n\n[[actual]]",
+    "links": [
+      {
+        "permalink": "actual",
+        "alias": null,
+        "raw": "[[actual]]"
+      }
+    ]
+  },
+  {
+    "name": "malformed",
+    "body": "[[]] [[ | alias]] [[target | ]] [[unclosed\n[[two\nlines]]",
+    "links": []
+  },
+  {
+    "name": "inert-alias",
+    "body": "[[ stable | <img src=x onerror=attack()> $alias$ ]]",
+    "links": [
+      {
+        "permalink": "stable",
+        "alias": "<img src=x onerror=attack()> $alias$",
+        "raw": "[[ stable | <img src=x onerror=attack()> $alias$ ]]"
+      }
+    ]
+  },
+  {
+    "name": "crlf",
+    "body": "앞\r\n[[a]]\r\n\r\n```\r\n[[code]]\r\n```\r\n",
+    "links": [
+      {
+        "permalink": "a",
+        "alias": null,
+        "raw": "[[a]]"
+      }
+    ]
+  },
+  {
+    "name": "blockquoted-code",
+    "body": "> ```\n> [[code]]\n> ```\n> [[actual]]",
+    "links": [
+      {
+        "permalink": "actual",
+        "alias": null,
+        "raw": "[[actual]]"
+      }
+    ]
+  },
+  {
+    "name": "backslash-opaque-id",
+    "body": "[[with\\*id]]",
+    "links": [
+      {
+        "permalink": "with\\*id",
+        "alias": null,
+        "raw": "[[with\\*id]]"
+      }
+    ]
+  },
+  {
+    "name": "unicode-trim",
+    "body": "[[ 한글 | 별칭 ]]",
+    "links": [
+      {
+        "permalink": "한글",
+        "alias": "별칭",
+        "raw": "[[ 한글 | 별칭 ]]"
+      }
+    ]
+  },
+  {
+    "name": "nested-brackets",
+    "body": "[[bad[inner]]] [[good]]",
+    "links": [
+      {
+        "permalink": "good",
+        "alias": null,
+        "raw": "[[good]]"
+      }
+    ]
+  },
+  {
+    "name": "adjacent",
+    "body": "[[one]][[two|two]]",
+    "links": [
+      {
+        "permalink": "one",
+        "alias": null,
+        "raw": "[[one]]"
+      },
+      {
+        "permalink": "two",
+        "alias": "two",
+        "raw": "[[two|two]]"
+      }
+    ]
+  },
+  {
+    "name": "bom-trim",
+    "body": "[[﻿id﻿ | ﻿alias﻿]]",
+    "links": [
+      {
+        "raw": "[[﻿id﻿ | ﻿alias﻿]]",
+        "permalink": "id",
+        "alias": "alias"
+      }
+    ]
+  },
+  {
+    "name": "nel-is-opaque",
+    "body": "[[id]]",
+    "links": [
+      {
+        "raw": "[[id]]",
+        "permalink": "id",
+        "alias": null
+      }
+    ]
+  }
+]

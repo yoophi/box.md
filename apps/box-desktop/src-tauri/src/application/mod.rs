@@ -1,3 +1,4 @@
+mod document_links;
 pub mod document_mutations;
 pub mod document_service;
 pub mod document_workspace;

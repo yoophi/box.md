@@ -13,6 +13,7 @@ pub(super) const NAMES: &[&str] = &[
     "restore_document",
     "get_document_metadata",
     "update_document_metadata",
+    "get_document_links",
 ];
 fn object(properties: Value, required: &[&str]) -> Value {
     json!({"type":"object","properties":properties,"required":required,"additionalProperties":false})
@@ -63,7 +64,7 @@ fn input(name: &str) -> Value {
             properties["query"] = nonempty(1024);
             object(properties, &["query"])
         }
-        "read_document" | "get_document_metadata" => {
+        "read_document" | "get_document_metadata" | "get_document_links" => {
             object(json!({"document":reference()}), &["document"])
         }
         "create_document" => object(
@@ -111,6 +112,22 @@ fn output(name: &str) -> Value {
         object(properties, &[field, "warnings", "truncated"])
     };
     let data = match name {
+        "get_document_links" => {
+            let mut target = descriptor(false);
+            target["properties"]["title"] = string();
+            target["required"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!("title"));
+            let token = object(
+                json!({"permalink":string(),"alias":{"type":["string","null"]},"raw":string(),"byteStart":{"type":"integer","minimum":0},"byteEnd":{"type":"integer","minimum":0},"state":{"type":"string","enum":["resolved","missing","duplicate","error"]},"target":target}),
+                &["permalink", "alias", "raw", "byteStart", "byteEnd", "state"],
+            );
+            object(
+                json!({"document":descriptor(false),"links":array(token.clone()),"backlinks":array(object(json!({"document":descriptor(false),"links":array(token)}), &["document","links"])),"warnings":warnings,"truncated":{"type":"boolean"}}),
+                &["document", "links", "backlinks", "warnings", "truncated"],
+            )
+        }
         "list_documents" => page("documents", descriptor(false)),
         "search_documents" => {
             let mut item = descriptor(false);
@@ -149,6 +166,7 @@ pub(super) fn tool(name: &str) -> Option<Tool> {
         "update_document" => "Save Markdown with mandatory expectedRevision and scope-local retry requestId.",
         "update_document_metadata" => "Patch top-level frontmatter keys, preserving other metadata, comments and body bytes.",
         "get_document_metadata" => "Read frontmatter metadata by unique permalink or relative path.",
+        "get_document_links" => "Read bounded body wikilink tokens, live resolution and incoming references; explicit connections remain unchanged.",
         "read_document" => "Read Markdown and its current revision by unique permalink or relative path.",
         "list_documents" => "List relative Markdown documents with bounded paging, warnings and truncation status.",
         _ => "Search body, summary and permalink using a case-insensitive literal query with bounded excerpts.",

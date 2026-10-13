@@ -221,7 +221,7 @@ async fn discovery_and_all_document_tools_use_real_http_files_and_common_results
     assert_eq!(initialized["result"]["serverInfo"]["name"], "box-documents");
     let tools = f.rpc("fixture-a", "tools/list", json!({})).await;
     let tools = tools["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 10);
+    assert_eq!(tools.len(), 11);
     for tool in tools {
         assert_eq!(tool["inputSchema"]["additionalProperties"], false);
         assert_eq!(tool["outputSchema"]["oneOf"].as_array().unwrap().len(), 2);
@@ -587,5 +587,151 @@ async fn dropped_http_connection_retains_accepted_mutation_result_and_single_his
             .len(),
         1
     );
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn body_links_backlinks_live_resolution_and_partial_scan_never_mutate_files_or_connections() {
+    let f = Fixture::new().await;
+    let body="앞 [[target | 별칭 🌱]] [[missing]] [[ambiguous]] [[invalidtitle]]\r\n`[[inline]]`\r\n\\[[escaped]]\r\n\r\n```\r\n[[code]]\r\n```\r\n";
+    let source = format!(
+        "\u{feff}---\r\npermalink: legacy-0\r\nsummary: '[[header-only]]'\r\n---\r\n{body}"
+    );
+    fs::write(f.roots[0].path().join("legacy.md"), &source).unwrap();
+    for (path,content) in [
+        ("target.md","---\npermalink: target\n---\n# **최신** [[x | 별칭]]\n"),
+        ("amb1.md","---\npermalink: ambiguous\n---\na"),("amb2.md","---\npermalink: ambiguous\n---\nb"),
+        ("invalidtitle.md","---\npermalink: invalidtitle\ntitle: [not, string]\n---\ntext"),
+        ("incoming.md","---\npermalink: incoming\nsummary: '[[legacy-0]]'\n---\n[[legacy-0 | source]] `[[legacy-0]]`"),
+    ] {fs::write(f.roots[0].path().join(path),content).unwrap();}
+    let connections = tempfile::tempdir().unwrap();
+    let service = crate::application::connection_service::ConnectionService::new(
+        crate::infrastructure::fs_connection_repository::FsConnectionRepository::new(
+            connections.path().into(),
+        ),
+    );
+    let created = service.create("独立 관계").unwrap();
+    service.attach(&created.entities[0].id, "legacy-0").unwrap();
+    let relationship_bytes = fs::read(connections.path().join("connections.json")).unwrap();
+    let query = json!({"document":{"path":"legacy.md"}});
+    let result = f.call("get_document_links", query.clone()).await;
+    assert_eq!(result["ok"], true);
+    let data = &result["data"];
+    assert_eq!(data["truncated"], false);
+    assert_eq!(data["links"].as_array().unwrap().len(), 4);
+    assert_eq!(data["links"][0]["state"], "resolved");
+    assert_eq!(data["links"][0]["alias"], "별칭 🌱");
+    assert_eq!(data["links"][0]["target"]["title"], "최신 별칭");
+    assert_eq!(data["links"][1]["state"], "missing");
+    assert_eq!(data["links"][2]["state"], "duplicate");
+    assert_eq!(data["links"][3]["state"], "error");
+    for link in data["links"].as_array().unwrap() {
+        assert_eq!(
+            &body[link["byteStart"].as_u64().unwrap() as usize
+                ..link["byteEnd"].as_u64().unwrap() as usize],
+            link["raw"].as_str().unwrap()
+        );
+    }
+    assert_eq!(data["backlinks"].as_array().unwrap().len(), 1);
+    assert_eq!(data["backlinks"][0]["document"]["permalink"], "incoming");
+    assert_eq!(data["backlinks"][0]["links"].as_array().unwrap().len(), 1);
+    fs::rename(
+        f.roots[0].path().join("target.md"),
+        f.roots[0].path().join("renamed.md"),
+    )
+    .unwrap();
+    assert_eq!(
+        f.call("get_document_links", query.clone()).await["data"]["links"][0]["target"]["path"],
+        "renamed.md"
+    );
+    fs::write(
+        f.roots[0].path().join("bad.md"),
+        "---\nunknown: [invalid YAML\n---\n[[legacy-0]]",
+    )
+    .unwrap();
+    let partial = f.call("get_document_links", query).await;
+    assert_eq!(partial["ok"], true);
+    assert!(!partial["data"]["warnings"].as_array().unwrap().is_empty());
+    assert_eq!(partial["data"]["links"][0]["state"], "error");
+    assert_eq!(partial["data"]["links"][2]["state"], "duplicate");
+    assert_eq!(partial["data"]["backlinks"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        fs::read_to_string(f.roots[0].path().join("legacy.md")).unwrap(),
+        source
+    );
+    assert_eq!(
+        fs::read(connections.path().join("connections.json")).unwrap(),
+        relationship_bytes
+    );
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn link_and_backlink_output_share_a_global_token_limit_without_silent_completeness() {
+    let f = Fixture::new().await;
+    let source = format!(
+        "---\npermalink: legacy-0\n---\n{}",
+        "[[legacy-0]] ".repeat(10_001)
+    );
+    fs::write(f.roots[0].path().join("legacy.md"), &source).unwrap();
+    let result = f
+        .call(
+            "get_document_links",
+            json!({"document":{"path":"legacy.md"}}),
+        )
+        .await;
+    assert_eq!(result["ok"], true);
+    assert_eq!(result["data"]["links"].as_array().unwrap().len(), 10_000);
+    assert!(result["data"]["backlinks"].as_array().unwrap().is_empty());
+    assert_eq!(result["data"]["truncated"], true);
+    let warnings = result["data"]["warnings"].as_array().unwrap();
+    assert!(warnings.iter().any(|w| w["code"] == "linkLimit"));
+    assert!(warnings.iter().any(|w| w["code"] == "backlinkLimit"));
+    assert_eq!(
+        fs::read_to_string(f.roots[0].path().join("legacy.md")).unwrap(),
+        source
+    );
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn bounded_target_titles_and_heading_alias_markup_remain_inert() {
+    let f = Fixture::new().await;
+    fs::write(
+        f.roots[0].path().join("legacy.md"),
+        "---\npermalink: legacy-0\n---\n[[huge]] [[inert]] [[fallback]]",
+    )
+    .unwrap();
+    fs::write(
+        f.roots[0].path().join("huge.md"),
+        format!(
+            "---\npermalink: huge\ntitle: {}\n---\ntext",
+            "x".repeat(8193)
+        ),
+    )
+    .unwrap();
+    fs::write(
+        f.roots[0].path().join("inert.md"),
+        "---\npermalink: inert\n---\n```\n# wrong\n```\n\n# [[unknown | <b>alias</b>]]",
+    )
+    .unwrap();
+    fs::write(
+        f.roots[0].path().join("fallback.md"),
+        "---\npermalink: fallback\n---\nplain body",
+    )
+    .unwrap();
+    let result = f
+        .call(
+            "get_document_links",
+            json!({"document":{"path":"legacy.md"}}),
+        )
+        .await;
+    assert_eq!(result["data"]["links"][0]["state"], "error");
+    assert!(result["data"]["links"][0].get("target").is_none());
+    assert_eq!(
+        result["data"]["links"][1]["target"]["title"],
+        "<b>alias</b>"
+    );
+    assert_eq!(result["data"]["links"][2]["target"]["title"], "fallback.md");
     f.stop().await;
 }

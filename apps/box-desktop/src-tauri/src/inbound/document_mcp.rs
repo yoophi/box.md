@@ -79,6 +79,10 @@ fn execute(
             let p: Reference = parse(args)?;
             value(scope.get_metadata(&p.document)?)
         }
+        "get_document_links" => {
+            let p: Reference = parse(args)?;
+            scope.document_links(&p.document)
+        }
         _ => {
             let request_id = args
                 .remove("requestId")

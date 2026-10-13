@@ -54,7 +54,7 @@ pub(super) fn metadata(document: &DocumentSnapshot) -> Result<MetadataSnapshot, 
 
 // Called only after the metadata adapter has validated the envelope. Search
 // excludes arbitrary header fields, but includes summary/permalink separately.
-fn body(content: &str) -> &str {
+pub(super) fn body(content: &str) -> &str {
     let text = content.strip_prefix('\u{feff}').unwrap_or(content);
     let first = text.split_inclusive('\n').next().unwrap_or("");
     fn marker(line: &str) -> &str {
@@ -96,11 +96,11 @@ fn excerpt(text: &str, query: &str) -> Option<String> {
     )
 }
 
-struct Index {
-    documents: Vec<DocumentDescriptor>,
+pub(super) struct Index {
+    pub(super) documents: Vec<DocumentDescriptor>,
     matches: Vec<SearchMatch>,
-    warnings: Vec<ScopedWarning>,
-    truncated: bool,
+    pub(super) warnings: Vec<ScopedWarning>,
+    pub(super) truncated: bool,
     revision: String,
 }
 impl Index {
@@ -120,7 +120,11 @@ impl DocumentStore {
             DocumentError::new("workspaceUnavailable", "작업 디렉터리를 선택해주세요.")
         })
     }
-    fn index(&self, exclude: Option<&str>, query: Option<&str>) -> Result<Index, DocumentError> {
+    pub(super) fn index(
+        &self,
+        exclude: Option<&str>,
+        query: Option<&str>,
+    ) -> Result<Index, DocumentError> {
         let listing = self.scoped_repository()?.list()?;
         let mut result = Index {
             documents: vec![],
