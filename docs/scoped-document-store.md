@@ -2,7 +2,7 @@
 
 `crates/document-store`는 기존 `DocumentSnapshot`, `DocumentError`, `DocumentRepository` 계약과 새 `ScopedDocumentRepository` 계약을 제공한다. 앱의 기존 domain/ports 경로는 이 계약을 재export한다. 기존 `FsDocumentRepository`와 새 `ScopedFsDocumentRepository`가 같은 port를 구현하며, application/domain에는 파일 시스템 API를 추가하지 않았다.
 
-gh-54는 실제 파일 저장소 기반이다. MCP 도구나 native command는 아직 이 adapter를 등록하지 않는다. metadata, permalink, 기존 `DocumentService`의 저장 이력과 UI 경로 통합은 gh-55/gh-56에서 진행한다. 전체 범위는 [MCP 구현 계획](document-mcp-implementation-plan.md)을 따른다.
+gh-54 당시 범위는 실제 파일 저장소 기반이었다. 후속 gh-55/56에서 metadata, permalink, 기존 `DocumentService`의 저장 이력과 native UI 경로를 통합했고 gh-57에서 [서비스 전체 수용 기준](scoped-document-service-acceptance-audit.md)을 감사했다. MCP handler 등록·세션 grant·ACP/UI 이벤트는 gh-51~53에 남아 있다. 전체 범위는 [MCP 구현 계획](document-mcp-implementation-plan.md)을 따른다.
 
 ## 범위와 경로
 
@@ -11,7 +11,7 @@ gh-54는 실제 파일 저장소 기반이다. MCP 도구나 native command는 �
 - 각 부모 디렉터리를 한 구간씩 `open_dir_nofollow`로 연다. 파일도 no-follow로 열고 일반 파일인지 확인한다. FIFO open에는 Unix `O_NONBLOCK`을 사용해 타입 검사 전에 대기하지 않게 한다.
 - 절대 경로, `.`/`..`/빈 구간, backslash, Windows drive prefix, control 문자를 거부한다. 확장자는 대소문자를 무시한 `.md`, `.markdown`, `.mdown`이다.
 - hidden 디렉터리, `node_modules`, `target`, 관리 경로 `.box.md`는 일반 문서 경로와 목록에서 제외한다. 기존 앱처럼 `.note.md`와 같은 일반 dot 파일은 허용한다.
-- 경로 이름이 바뀌어도 권한은 처음 연 디렉터리 객체에 남는다. 원래 루트 이름을 외부 symlink로 바꿔도 외부 디렉터리로 재연결하지 않는다. 열린 하위 디렉터리가 이동하면 그 handle이 가리키는 객체에 접근한다. 루트 변경 시 기존 scope 폐기는 gh-52의 application 수명 관리 책임이다.
+- 경로 이름이 바뀌어도 권한은 처음 연 디렉터리 객체에 남는다. 원래 루트 이름을 외부 symlink로 바꿔도 외부 디렉터리로 재연결하지 않는다. 열린 하위 디렉터리가 이동하면 그 handle이 가리키는 객체에 접근한다. 루트 변경 시 기존 scope의 수락 중단·accepted drain은 gh-62/63에서 구현했다. 세션 credential 폐기는 gh-52의 책임이다.
 
 라이브러리는 `cap-std = 4.0.3`, `cap-fs-ext = 4.0.3`에 고정했다. no-follow 동작과 handle 상대 경로 작업은 배포 crate의 공식 소스를 확인했다. `open_dir_nofollow`는 마지막 구간에 적용되므로 전체 경로를 한 번에 전달하지 않는다. 근거: [Dir 구현](https://github.com/bytecodealliance/cap-std/blob/b7acf8e8807fe3fab991884d2208b7e03d35a409/cap-std/src/fs/dir.rs), [DirExt 구현](https://github.com/bytecodealliance/cap-std/blob/b7acf8e8807fe3fab991884d2208b7e03d35a409/cap-fs-ext/src/dir_ext.rs), [sandboxed hard-link](https://github.com/bytecodealliance/cap-std/blob/b7acf8e8807fe3fab991884d2208b7e03d35a409/cap-primitives/src/fs/hard_link.rs).
 
