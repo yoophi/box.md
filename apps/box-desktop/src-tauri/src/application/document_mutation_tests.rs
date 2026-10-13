@@ -699,12 +699,31 @@ fn failed_revision_is_cached_even_after_disk_changes_to_match_the_request() {
         .unwrap()
         .wait();
     assert_eq!(first.as_ref().as_ref().unwrap_err().code, "conflict");
+    let conflict_revision = scope.read("note.md").unwrap().revision;
+    assert_eq!(
+        first
+            .as_ref()
+            .as_ref()
+            .unwrap_err()
+            .current_revision
+            .as_deref(),
+        Some(conflict_revision.as_str())
+    );
     fs::write(root.path().join("note.md"), "original").unwrap();
     let retry = scope
         .submit_mutation("stale", update("request", &original.revision))
         .unwrap()
         .wait();
     assert!(Arc::ptr_eq(&first, &retry));
+    assert_eq!(
+        retry
+            .as_ref()
+            .as_ref()
+            .unwrap_err()
+            .current_revision
+            .as_deref(),
+        Some(conflict_revision.as_str())
+    );
     assert_eq!(
         fs::read_to_string(root.path().join("note.md")).unwrap(),
         "original"

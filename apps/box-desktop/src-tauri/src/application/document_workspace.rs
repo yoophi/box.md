@@ -260,11 +260,7 @@ impl DocumentScope {
         ticket: MutationTicket,
     ) -> Result<serde_json::Value, DocumentError> {
         let outcome = ticket.wait();
-        let mut value = outcome
-            .as_ref()
-            .as_ref()
-            .map_err(|e| DocumentError::new(e.code, &e.message))?
-            .clone();
+        let mut value = outcome.as_ref().as_ref().map_err(Clone::clone)?.clone();
         let path = value["document"]["path"]
             .as_str()
             .ok_or_else(|| DocumentError::new("internal", "문서 생성 응답이 올바르지 않습니다."))?;

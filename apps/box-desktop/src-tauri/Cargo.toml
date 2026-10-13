@@ -29,12 +29,16 @@ uuid = { version = "1", features = ["v4"] }
 chrono = { version = "=0.4.45", default-features = false, features = ["clock"] }
 getrandom = "=0.4.3"
 workbench-desktop-client = { path = "../../../vendor/agentic-workspace/crates/workbench-desktop-client" }
+local-mcp-server = { path = "../../../vendor/agentic-workspace/crates/local-mcp-server" }
+tokio = { version = "1", features = ["rt"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "WKWebView", "WKNavigation"] }
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

@@ -377,11 +377,10 @@ impl MutationRegistry {
                     ))
                 });
                 // Keep errors bounded and do not publish adapter exception details.
-                let result = result.map_err(|error| {
-                    DocumentError::new(
-                        error.code,
-                        "문서 요청을 처리하지 못했습니다. 오류 코드를 확인해주세요.",
-                    )
+                let result = result.map_err(|mut error| {
+                    error.message =
+                        "문서 요청을 처리하지 못했습니다. 오류 코드를 확인해주세요.".into();
+                    error
                 });
                 registry.complete(&id, &result);
                 response.finish(result);

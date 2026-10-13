@@ -1,4 +1,5 @@
 pub mod document_commands;
+pub mod document_mcp;
 pub mod workspace_commands;
 use crate::{application::AppInfoService, domain::AppInfo};
 

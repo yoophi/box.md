@@ -108,7 +108,8 @@ impl DocumentStore {
             return Err(DocumentError::new(
                 "conflict",
                 "문서가 변경되었습니다. 다시 조회해주세요.",
-            ));
+            )
+            .with_current_revision(current.revision));
         }
         Ok(current)
     }

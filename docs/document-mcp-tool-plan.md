@@ -14,6 +14,8 @@
 
 gh-69는 완료된 gh-64, gh-70은 gh-69, gh-71은 gh-70에 의존한다. gh-51의 최종 검토는 gh-71 뒤에 수행한다. 세 단위 모두 gh-51 하위 task로 등록했으며 기존 부모 선행 관계를 유지한다.
 
+gh-69의 [문서 도구 구현 및 실행 결과](document-mcp-tools.md)는 실제 HTTP 회귀 5개와 독립 schema 검사(응답 44개/도구 10개), CAS 오류의 currentRevision/journal 보존 및 TCP 응답 유실 뒤 단일 파일·이력 결과를 기록한다. 이후 gh-70의 본문 링크·독립 연결을 순차 진행한다.
+
 ## adapter와 application 경계
 
 Box의 inbound MCP handler가 도구 이름과 입력/출력 JSON schema를 제공한다. 고정 필드 객체는 serde의 `deny_unknown_fields` 및 값 검사를 함께 사용한다. path/permalink union은 기존 `DocumentRef`를 사용하고 path는 루트 상대 Markdown 경로만 허용한다. schema를 광고하는 것만으로 runtime 검증을 대신하지 않는다.

@@ -9,11 +9,13 @@ pub struct DocumentSnapshot {
     pub history_warning: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DocumentError {
     pub code: &'static str,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_revision: Option<String>,
 }
 
 impl DocumentError {
@@ -21,7 +23,16 @@ impl DocumentError {
         Self {
             code,
             message: message.into(),
+            current_revision: None,
         }
+    }
+
+    pub fn with_current_revision(mut self, revision: String) -> Self {
+        // Revisions are content hashes, never adapter exception text or paths.
+        if revision.len() == 64 && revision.bytes().all(|b| b.is_ascii_hexdigit()) {
+            self.current_revision = Some(revision);
+        }
+        self
     }
 }
 
