@@ -16,6 +16,7 @@ pub(super) struct DocumentStore {
     pub(super) history: Box<dyn DocumentHistory>,
     pub(super) scoped: Option<Arc<dyn ScopedDocumentRepository>>,
     pub(super) identities: Option<Arc<dyn DocumentIdentitySource>>,
+    pub(super) connections: Option<Arc<super::connection_service::ConnectionService>>,
 }
 pub struct DocumentService {
     store: Mutex<DocumentStore>,
@@ -31,6 +32,7 @@ impl DocumentService {
                 history: Box::new(history),
                 scoped: None,
                 identities: None,
+                connections: None,
             }),
         }
     }
@@ -44,6 +46,7 @@ impl DocumentService {
                 history: Box::new(history),
                 scoped: Some(repository),
                 identities: None,
+                connections: None,
             }),
         }
     }
@@ -52,6 +55,16 @@ impl DocumentService {
             .get_mut()
             .unwrap_or_else(|e| e.into_inner())
             .identities = Some(Arc::new(source));
+        self
+    }
+    pub fn with_connections(
+        mut self,
+        service: Arc<super::connection_service::ConnectionService>,
+    ) -> Self {
+        self.store
+            .get_mut()
+            .unwrap_or_else(|e| e.into_inner())
+            .connections = Some(service);
         self
     }
     pub fn listing(&self) -> Result<ScopedListing, DocumentError> {

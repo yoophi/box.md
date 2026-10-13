@@ -255,6 +255,10 @@ mod tests {
     }
 }
 impl DocumentScope {
+    #[cfg(test)]
+    pub(crate) fn wait_until_stopped(&self) {
+        self.admission.wait_until_stopped();
+    }
     pub fn native_created_result(
         &self,
         ticket: MutationTicket,
@@ -340,6 +344,12 @@ impl DocumentScope {
         reference: &DocumentRef,
     ) -> Result<serde_json::Value, DocumentError> {
         self.admitted(|s| s.document_links(reference))
+    }
+    pub fn list_connections(
+        &self,
+        reference: Option<&DocumentRef>,
+    ) -> Result<serde_json::Value, DocumentError> {
+        self.admitted(|s| s.list_connections(reference))
     }
     pub fn create_document(
         &self,

@@ -285,7 +285,7 @@ pub fn run() {
                     infrastructure::fs_document_repository::FsDocumentRepository,
                     infrastructure::git_document_history::GitDocumentHistory::new(history.clone()),
                 ),
-                infrastructure::document_scope_factory::FsDocumentScopeFactory::new(history),
+                infrastructure::document_scope_factory::FsDocumentScopeFactory::new(history).with_connections(app.state::<std::sync::Arc<application::connection_service::ConnectionService>>().inner().clone()),
             ));
             Ok(())
         })

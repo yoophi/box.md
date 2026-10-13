@@ -73,6 +73,42 @@ fn resolved(
     value
 }
 impl DocumentService {
+    pub fn list_connections(
+        &self,
+        reference: Option<&DocumentRef>,
+    ) -> Result<Value, DocumentError> {
+        let store = self.lock()?;
+        let connections = store.connections.as_ref().ok_or_else(|| {
+            DocumentError::new("workspaceUnavailable", "연결 저장소를 사용할 수 없습니다.")
+        })?;
+        let selected = reference
+            .map(|r| {
+                store.read_reference(r).and_then(|d| {
+                    properties(&d.content)?.0.ok_or_else(|| {
+                        DocumentError::new("missingPermalink", "문서에 고정 링크가 없습니다.")
+                    })
+                })
+            })
+            .transpose()?;
+        let mut snapshot = connections.snapshot()?;
+        if let Some(id) = selected {
+            snapshot.memberships.retain(|m| m.permalink == id);
+            snapshot
+                .entities
+                .retain(|e| snapshot.memberships.iter().any(|m| m.connection_id == e.id));
+        }
+        let index = store.index(None, None)?;
+        let complete = !index.truncated && index.warnings.is_empty();
+        let memberships:Vec<_>=snapshot.memberships.into_iter().map(|m|{
+            let matches:Vec<_>=index.documents.iter().filter(|d|d.permalink.as_deref()==Some(&m.permalink)).collect();
+            let mut value=json!({"connectionId":m.connection_id,"permalink":m.permalink,"state":if matches.len()>1{"duplicate"}else if !complete{"error"}else if matches.is_empty(){"unresolved"}else{"resolved"}});
+            if value["state"]=="resolved" {value["document"]=serde_json::to_value(matches[0]).expect("descriptor serialization");}
+            value
+        }).collect();
+        Ok(
+            json!({"connections":{"version":snapshot.version,"entities":snapshot.entities,"memberships":memberships},"warnings":index.warnings,"truncated":index.truncated}),
+        )
+    }
     pub fn document_links(&self, reference: &DocumentRef) -> Result<Value, DocumentError> {
         let store = self.lock()?;
         let source = store.read_reference(reference)?;

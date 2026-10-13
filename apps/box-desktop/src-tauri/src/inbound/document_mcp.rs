@@ -46,6 +46,11 @@ struct Search {
 struct Reference {
     document: DocumentRef,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ConnectionFilter {
+    document: Option<DocumentRef>,
+}
 fn invalid() -> DocumentError {
     DocumentError::new("invalidArguments", "도구 인자를 확인해주세요.")
 }
@@ -63,6 +68,10 @@ fn execute(
     mut args: Map<String, Value>,
 ) -> Result<Value, DocumentError> {
     match name {
+        "list_connections" => {
+            let p: ConnectionFilter = parse(args)?;
+            scope.list_connections(p.document.as_ref())
+        }
         "list_documents" => {
             let p: Paging = parse(args)?;
             value(scope.list_documents(p.cursor.as_deref(), p.limit)?)
@@ -95,6 +104,9 @@ fn execute(
                 "update_document_metadata" => "update_metadata",
                 "delete_document" => "delete",
                 "restore_document" => "restore",
+                "create_connection" => "create_connection",
+                "attach_connection" => "attach_connection",
+                "detach_connection" => "detach_connection",
                 _ => return Err(invalid()),
             };
             args.insert("operation".into(), json!(operation));

@@ -14,6 +14,10 @@ pub(super) const NAMES: &[&str] = &[
     "get_document_metadata",
     "update_document_metadata",
     "get_document_links",
+    "list_connections",
+    "create_connection",
+    "attach_connection",
+    "detach_connection",
 ];
 fn object(properties: Value, required: &[&str]) -> Value {
     json!({"type":"object","properties":properties,"required":required,"additionalProperties":false})
@@ -58,6 +62,15 @@ fn input(name: &str) -> Value {
     let request = nonempty(256);
     let revision = nonempty(128);
     match name {
+        "list_connections" => object(json!({"document":reference()}), &[]),
+        "create_connection" => object(
+            json!({"name":nonempty(120),"requestId":request}),
+            &["name", "requestId"],
+        ),
+        "attach_connection" | "detach_connection" => object(
+            json!({"connectionId":nonempty(8192),"permalink":nonempty(8192),"requestId":request}),
+            &["connectionId", "permalink", "requestId"],
+        ),
         "list_documents" => object(paging, &[]),
         "search_documents" => {
             let mut properties = paging;
@@ -100,6 +113,18 @@ fn input(name: &str) -> Value {
         _ => unreachable!(),
     }
 }
+fn connection_snapshot(resolved: bool) -> Value {
+    let mut member_properties = json!({"connectionId":string(),"permalink":string()});
+    if resolved {
+        member_properties["state"] =
+            json!({"type":"string","enum":["resolved","unresolved","duplicate","error"]});
+        member_properties["document"] = descriptor(false);
+    }
+    object(
+        json!({"version":{"type":"integer","const":1},"entities":array(object(json!({"id":string(),"name":string()}), &["id","name"])),"memberships":array(object(member_properties,if resolved{&["connectionId","permalink","state"]}else{&["connectionId","permalink"]}))}),
+        &["version", "entities", "memberships"],
+    )
+}
 fn output(name: &str) -> Value {
     let warnings = array(object(
         json!({"path":{"type":["string","null"]},"code":string()}),
@@ -112,6 +137,18 @@ fn output(name: &str) -> Value {
         object(properties, &[field, "warnings", "truncated"])
     };
     let data = match name {
+        "list_connections" => object(
+            json!({"connections":connection_snapshot(true),"warnings":warnings,"truncated":{"type":"boolean"}}),
+            &["connections", "warnings", "truncated"],
+        ),
+        "create_connection" => object(
+            json!({"connection":object(json!({"id":string(),"name":string()}), &["id","name"]),"connections":connection_snapshot(false)}),
+            &["connection", "connections"],
+        ),
+        "attach_connection" | "detach_connection" => object(
+            json!({"connections":connection_snapshot(false)}),
+            &["connections"],
+        ),
         "get_document_links" => {
             let mut target = descriptor(false);
             target["properties"]["title"] = string();
@@ -159,6 +196,10 @@ pub(super) fn tool(name: &str) -> Option<Tool> {
         return None;
     }
     let description = match name {
+        "list_connections"=>"List the app-profile connection entities and memberships, optionally filtered by a current-scope document; resolve paths only inside this workspace.",
+        "create_connection"=>"Create an independent connection entity; document Markdown and other memberships remain unchanged.",
+        "attach_connection"=>"Attach one permalink to a connection entity using a scope-local retry requestId; preserve other memberships and documents.",
+        "detach_connection"=>"Remove only the requested connection/permalink pair, preserving the entity, other memberships and Markdown.",
         "create_document" => "Create an ID-named Markdown document; the server chooses its permalink and filename.",
         "duplicate_document" => "Copy a document into a new ID-named file and append 사본 to its title; keep the original unchanged.",
         "delete_document" => "Move a revision-checked document into recoverable trash without deleting connections.",

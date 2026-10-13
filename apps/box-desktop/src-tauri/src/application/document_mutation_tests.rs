@@ -732,6 +732,63 @@ fn failed_revision_is_cached_even_after_disk_changes_to_match_the_request() {
 }
 
 #[test]
+fn connection_result_capacity_failure_precedes_persistence_and_retries_cached_error() {
+    use crate::{
+        application::connection_service::ConnectionService,
+        infrastructure::fs_connection_repository::FsConnectionRepository,
+    };
+    let root = tempfile::tempdir().unwrap();
+    let history = tempfile::tempdir().unwrap();
+    let profile = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("source.md"), "unchanged source").unwrap();
+    let connections = Arc::new(ConnectionService::new(FsConnectionRepository::new(
+        profile.path().into(),
+    )));
+    for n in 0..30 {
+        connections.create(&format!("existing-{n}")).unwrap();
+    }
+    let id = connections.snapshot().unwrap().entities[0].id.clone();
+    connections.attach(&id, "source-id").unwrap();
+    let bytes = fs::read(profile.path().join("connections.json")).unwrap();
+    for mutation in [
+        DocumentMutation::CreateConnection { name: "new".into() },
+        DocumentMutation::AttachConnection {
+            connection_id: id.clone(),
+            permalink: "other".into(),
+        },
+        DocumentMutation::DetachConnection {
+            connection_id: id.clone(),
+            permalink: "source-id".into(),
+        },
+    ] {
+        let mut scope = limited(root.path(), history.path(), 128, 4224);
+        let service = DocumentService::scoped(
+            Arc::new(box_document_store::ScopedFsDocumentRepository::open(root.path()).unwrap()),
+            GitDocumentHistory::new(history.path().into()),
+        )
+        .with_connections(connections.clone());
+        scope.storage.service = Arc::new(service);
+        let retry: DocumentMutation =
+            serde_json::from_value(serde_json::to_value(&mutation).unwrap()).unwrap();
+        let first = scope.submit_mutation("capacity", mutation).unwrap().wait();
+        assert_eq!(
+            first.as_ref().as_ref().unwrap_err().code,
+            "requestCapacityExceeded"
+        );
+        let repeated = scope.submit_mutation("capacity", retry).unwrap().wait();
+        assert!(Arc::ptr_eq(&first, &repeated));
+        assert_eq!(
+            fs::read(profile.path().join("connections.json")).unwrap(),
+            bytes
+        );
+        assert_eq!(
+            fs::read_to_string(root.path().join("source.md")).unwrap(),
+            "unchanged source"
+        );
+    }
+}
+
+#[test]
 fn completed_records_are_not_evicted_and_same_id_retries_work_at_count_capacity() {
     let root = tempfile::tempdir().unwrap();
     let cache = tempfile::tempdir().unwrap();

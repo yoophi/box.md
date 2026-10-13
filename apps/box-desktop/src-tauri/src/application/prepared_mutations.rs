@@ -135,6 +135,39 @@ impl DocumentService {
         let store = self.lock()?;
         store.scoped_repository()?;
         match mutation {
+            DocumentMutation::CreateConnection { name } => {
+                let connections = store.connections.as_ref().ok_or_else(|| {
+                    DocumentError::new("workspaceUnavailable", "연결 저장소를 사용할 수 없습니다.")
+                })?;
+                let id = uuid::Uuid::new_v4().to_string();
+                connections.reserved(Some(&id), |state| state.create(id.clone(), &name), reserve)
+            }
+            DocumentMutation::AttachConnection {
+                connection_id,
+                permalink,
+            } => {
+                let connections = store.connections.as_ref().ok_or_else(|| {
+                    DocumentError::new("workspaceUnavailable", "연결 저장소를 사용할 수 없습니다.")
+                })?;
+                connections.reserved(
+                    None,
+                    |state| state.attach(&connection_id, &permalink),
+                    reserve,
+                )
+            }
+            DocumentMutation::DetachConnection {
+                connection_id,
+                permalink,
+            } => {
+                let connections = store.connections.as_ref().ok_or_else(|| {
+                    DocumentError::new("workspaceUnavailable", "연결 저장소를 사용할 수 없습니다.")
+                })?;
+                connections.reserved(
+                    None,
+                    |state| state.detach(&connection_id, &permalink),
+                    reserve,
+                )
+            }
             DocumentMutation::CreateDocument { content } => {
                 store.create_identified(&content, None, reserve)
             }

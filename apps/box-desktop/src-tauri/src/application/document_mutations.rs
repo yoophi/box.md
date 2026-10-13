@@ -77,6 +77,17 @@ pub enum DocumentMutation {
     Restore {
         trash_id: String,
     },
+    CreateConnection {
+        name: String,
+    },
+    AttachConnection {
+        connection_id: String,
+        permalink: String,
+    },
+    DetachConnection {
+        connection_id: String,
+        permalink: String,
+    },
 }
 
 fn invalid() -> DocumentError {
@@ -162,6 +173,28 @@ fn canonical(value: &Value, output: &mut Sha256) {
 impl DocumentMutation {
     fn fingerprint(&self) -> Result<[u8; 32], DocumentError> {
         let revision = match self {
+            Self::CreateConnection { name } => {
+                if name.len() > 8192 {
+                    return Err(invalid());
+                }
+                None
+            }
+            Self::AttachConnection {
+                connection_id,
+                permalink,
+            }
+            | Self::DetachConnection {
+                connection_id,
+                permalink,
+            } => {
+                if [connection_id, permalink]
+                    .iter()
+                    .any(|s| s.trim().is_empty() || s.len() > 8192 || s.contains(['\r', '\n']))
+                {
+                    return Err(invalid());
+                }
+                None
+            }
             Self::CreateDocument { content } => {
                 if content.len() > MAX_INPUT_BYTES {
                     return Err(invalid());

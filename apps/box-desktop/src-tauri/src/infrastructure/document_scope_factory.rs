@@ -18,10 +18,21 @@ use std::{
 
 pub struct FsDocumentScopeFactory {
     history: PathBuf,
+    connections: Option<Arc<crate::application::connection_service::ConnectionService>>,
 }
 impl FsDocumentScopeFactory {
     pub fn new(history: PathBuf) -> Self {
-        Self { history }
+        Self {
+            history,
+            connections: None,
+        }
+    }
+    pub fn with_connections(
+        mut self,
+        connections: Arc<crate::application::connection_service::ConnectionService>,
+    ) -> Self {
+        self.connections = Some(connections);
+        self
     }
 }
 impl DocumentScopeFactory for FsDocumentScopeFactory {
@@ -46,13 +57,15 @@ impl DocumentScopeFactory for FsDocumentScopeFactory {
             root,
             inner: GitDocumentHistory::new(self.history.clone()),
         };
+        let mut service = DocumentService::scoped(repository, history)
+            .with_identity_source(LocalDocumentIdentity);
+        if let Some(connections) = &self.connections {
+            service = service.with_connections(connections.clone());
+        }
         Ok(DocumentScopeStorage {
             path: canonical.clone(),
             aliases: vec![canonical, path.into()],
-            service: Arc::new(
-                DocumentService::scoped(repository, history)
-                    .with_identity_source(LocalDocumentIdentity),
-            ),
+            service: Arc::new(service),
         })
     }
     fn native_path(&self, path: &str) -> Result<String, DocumentError> {

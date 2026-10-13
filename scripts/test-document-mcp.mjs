@@ -23,6 +23,6 @@ for (const file of readdirSync(directory).filter((name) => name.endsWith(".jsonl
     count++;
   }
 }
-if (tools.size !== 11) throw new Error(`Expected all 11 document tools, observed ${tools.size}`);
+if (tools.size !== 15) throw new Error(`Expected all 15 document tools, observed ${tools.size}`);
 console.log(`Validated ${count} actual HTTP outputs for ${tools.size} tools with independent JSON Schema 2020-12.`);
 console.log(`Evidence: ${directory}`);

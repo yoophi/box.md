@@ -14,6 +14,37 @@ struct HistoryGate {
     entered: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     release: Mutex<std::sync::mpsc::Receiver<()>>,
 }
+struct GatedConnectionRepository {
+    inner: crate::infrastructure::fs_connection_repository::FsConnectionRepository,
+    gate: Arc<HistoryGate>,
+}
+impl crate::ports::connection_repository::ConnectionRepository for GatedConnectionRepository {
+    fn read(&self) -> Result<crate::domain::connection::ConnectionSnapshot, DocumentError> {
+        self.inner.read()
+    }
+    fn transact(
+        &self,
+        edit: &mut dyn FnMut(
+            &mut crate::domain::connection::ConnectionSnapshot,
+        ) -> Result<bool, DocumentError>,
+    ) -> Result<crate::domain::connection::ConnectionSnapshot, DocumentError> {
+        self.inner.transact(&mut |state| {
+            let changed = edit(state)?;
+            if let Some(entered) = self.gate.entered.lock().unwrap().take() {
+                let _ = entered.send(());
+                self.gate
+                    .release
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(10))
+                    .map_err(|_| {
+                        DocumentError::new("internal", "Connection test gate timed out")
+                    })?;
+            }
+            Ok(changed)
+        })
+    }
+}
 struct GatedHistory {
     root: std::path::PathBuf,
     inner: GitDocumentHistory,
@@ -44,6 +75,7 @@ struct TestFactory {
     inner: FsDocumentScopeFactory,
     history: std::path::PathBuf,
     gate: Option<Arc<HistoryGate>>,
+    connections: Arc<crate::application::connection_service::ConnectionService>,
 }
 impl crate::ports::document_scope_factory::DocumentScopeFactory for TestFactory {
     fn open(
@@ -65,7 +97,8 @@ impl crate::ports::document_scope_factory::DocumentScopeFactory for TestFactory 
                 )
                 .with_identity_source(
                     crate::infrastructure::document_identity::LocalDocumentIdentity,
-                ),
+                )
+                .with_connections(self.connections.clone()),
             );
         }
         Ok(storage)
@@ -76,8 +109,11 @@ impl crate::ports::document_scope_factory::DocumentScopeFactory for TestFactory 
 }
 
 struct Fixture {
+    managers: Vec<Arc<DocumentWorkspace>>,
     roots: [tempfile::TempDir; 2],
     _history: tempfile::TempDir,
+    connection_dir: tempfile::TempDir,
+    connections: Arc<crate::application::connection_service::ConnectionService>,
     scopes: [Arc<DocumentScope>; 2],
     grants: Arc<Mutex<HashMap<String, DocumentPrincipal>>>,
     host: LocalMcpHost,
@@ -88,9 +124,29 @@ impl Fixture {
     async fn new() -> Self {
         Self::with_gate(None).await
     }
-    async fn with_gate(mut gate: Option<Arc<HistoryGate>>) -> Self {
+    async fn with_gate(gate: Option<Arc<HistoryGate>>) -> Self {
+        Self::with_gates(gate, None).await
+    }
+    async fn with_gates(
+        mut gate: Option<Arc<HistoryGate>>,
+        connection_gate: Option<Arc<HistoryGate>>,
+    ) -> Self {
         let roots = [tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap()];
         let history = tempfile::tempdir().unwrap();
+        let connection_dir = tempfile::tempdir().unwrap();
+        let repository =
+            crate::infrastructure::fs_connection_repository::FsConnectionRepository::new(
+                connection_dir.path().into(),
+            );
+        let connections = Arc::new(match connection_gate {
+            Some(gate) => crate::application::connection_service::ConnectionService::new(
+                GatedConnectionRepository {
+                    inner: repository,
+                    gate,
+                },
+            ),
+            None => crate::application::connection_service::ConnectionService::new(repository),
+        });
         let mut scopes = vec![];
         for (index, root) in roots.iter().enumerate() {
             fs::write(root.path().join("legacy.md"), format!("---\npermalink: legacy-{index}\nsummary: 한 줄\n---\nroot {index} [[target]]\n")).unwrap();
@@ -100,9 +156,11 @@ impl Fixture {
                     GitDocumentHistory::new(history.path().into()),
                 ),
                 TestFactory {
-                    inner: FsDocumentScopeFactory::new(history.path().into()),
+                    inner: FsDocumentScopeFactory::new(history.path().into())
+                        .with_connections(connections.clone()),
                     history: history.path().into(),
                     gate: gate.take(),
+                    connections: connections.clone(),
                 },
             );
             workspace
@@ -119,10 +177,11 @@ impl Fixture {
             ("fixture-b".into(), DocumentPrincipal(scopes[1].clone())),
         ])));
         let resolver = grants.clone();
+        let keep_alive = managers.clone();
         let host = local_mcp_server::start(
             || Ok(DocumentMcpHandler),
             move |token| {
-                let _keep_alive = &managers;
+                let _keep_alive = &keep_alive;
                 resolver.lock().unwrap().get(token).cloned()
             },
             HostConfig::default(),
@@ -135,8 +194,11 @@ impl Fixture {
             .build()
             .unwrap();
         Self {
+            managers,
             roots,
             _history: history,
+            connection_dir,
+            connections,
             scopes,
             grants,
             host,
@@ -221,7 +283,7 @@ async fn discovery_and_all_document_tools_use_real_http_files_and_common_results
     assert_eq!(initialized["result"]["serverInfo"]["name"], "box-documents");
     let tools = f.rpc("fixture-a", "tools/list", json!({})).await;
     let tools = tools["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 11);
+    assert_eq!(tools.len(), 15);
     for tool in tools {
         assert_eq!(tool["inputSchema"]["additionalProperties"], false);
         assert_eq!(tool["outputSchema"]["oneOf"].as_array().unwrap().len(), 2);
@@ -733,5 +795,339 @@ async fn bounded_target_titles_and_heading_alias_markup_remain_inert() {
         "<b>alias</b>"
     );
     assert_eq!(result["data"]["links"][2]["target"]["title"], "fallback.md");
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn connection_tools_keep_many_to_many_pairs_and_markdown_independent_with_cached_retries() {
+    let f = Fixture::new().await;
+    let original: Vec<_> = f
+        .roots
+        .iter()
+        .map(|r| fs::read(r.path().join("legacy.md")).unwrap())
+        .collect();
+    let args = json!({"name":" review ","requestId":"connection-create"});
+    let first = f.call("create_connection", args.clone()).await;
+    assert_eq!(first["ok"], true);
+    assert_eq!(first, f.call("create_connection", args).await);
+    assert_eq!(
+        f.call(
+            "create_connection",
+            json!({"name":"different","requestId":"connection-create"})
+        )
+        .await["error"]["code"],
+        "requestIdConflict"
+    );
+    let id = first["data"]["connections"]["entities"][0]["id"]
+        .as_str()
+        .unwrap();
+    assert!(uuid::Uuid::parse_str(id).is_ok());
+    assert_eq!(first["data"]["connection"]["id"], id);
+    assert_eq!(first["data"]["connection"]["name"], "review");
+    assert_eq!(
+        first["data"]["connections"]["entities"][0]["name"],
+        "review"
+    );
+    for (nonce, permalink) in [("attach-a", "legacy-0"), ("attach-b", "legacy-1")] {
+        let args = json!({"connectionId":id,"permalink":permalink,"requestId":nonce});
+        let attached = f.call("attach_connection", args.clone()).await;
+        assert_eq!(attached["ok"], true);
+        assert_eq!(attached, f.call("attach_connection", args).await);
+    }
+    let second = f
+        .call(
+            "create_connection",
+            json!({"name":"other","requestId":"other-create"}),
+        )
+        .await;
+    let second_id = second["data"]["connections"]["entities"][1]["id"]
+        .as_str()
+        .unwrap();
+    assert_eq!(
+        f.call(
+            "attach_connection",
+            json!({"connectionId":second_id,"permalink":"legacy-0","requestId":"attach-other"})
+        )
+        .await["ok"],
+        true
+    );
+    let selected = f
+        .call(
+            "list_connections",
+            json!({"document":{"permalink":"legacy-0"}}),
+        )
+        .await;
+    assert_eq!(
+        selected["data"]["connections"]["entities"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        selected["data"]["connections"]["memberships"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let all = f.call("list_connections", json!({})).await;
+    assert!(all["data"]["connections"]["memberships"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|m| m["permalink"] == "legacy-1" && m["state"] == "unresolved"));
+    let other_root = f.call_as("fixture-b", "list_connections", json!({})).await;
+    assert!(other_root["data"]["connections"]["memberships"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|m| m["permalink"] == "legacy-1" && m["state"] == "resolved"));
+    let detach = json!({"connectionId":id,"permalink":"legacy-0","requestId":"detach"});
+    let detached = f.call("detach_connection", detach.clone()).await;
+    assert_eq!(detached, f.call("detach_connection", detach).await);
+    let state = f.connections.snapshot().unwrap();
+    assert_eq!(state.entities.len(), 2);
+    assert_eq!(state.memberships.len(), 2);
+    assert!(state
+        .memberships
+        .iter()
+        .any(|m| m.connection_id == id && m.permalink == "legacy-1"));
+    assert!(state
+        .memberships
+        .iter()
+        .any(|m| m.connection_id == second_id && m.permalink == "legacy-0"));
+    for (root, bytes) in f.roots.iter().zip(original.iter()) {
+        assert_eq!(fs::read(root.path().join("legacy.md")).unwrap(), *bytes);
+    }
+    let connection_bytes = fs::read(f.connection_dir.path().join("connections.json")).unwrap();
+    let doc = f
+        .call("read_document", json!({"document":{"path":"legacy.md"}}))
+        .await;
+    let changed=f.call("update_document",json!({"document":{"path":"legacy.md"},"content":format!("{}\n[[legacy-1]]",doc["data"]["document"]["content"].as_str().unwrap()),"expectedRevision":doc["data"]["document"]["revision"],"requestId":"body-save"})).await;
+    assert_eq!(changed["ok"], true);
+    assert_eq!(
+        fs::read(f.connection_dir.path().join("connections.json")).unwrap(),
+        connection_bytes
+    );
+    let metadata=f.call("update_document_metadata",json!({"document":{"path":"legacy.md"},"patch":{"permalink":"changed-id","title":"new title"},"remove":[],"expectedRevision":changed["data"]["document"]["revision"],"requestId":"identity-change"})).await;
+    assert_eq!(metadata["ok"], true);
+    assert_eq!(
+        fs::read(f.connection_dir.path().join("connections.json")).unwrap(),
+        connection_bytes
+    );
+    let by_new_id = f
+        .call(
+            "list_connections",
+            json!({"document":{"permalink":"changed-id"}}),
+        )
+        .await;
+    assert!(by_new_id["data"]["connections"]["memberships"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    let deleted=f.call("delete_document",json!({"document":{"path":"legacy.md"},"expectedRevision":metadata["data"]["document"]["revision"],"requestId":"delete-linked"})).await;
+    assert_eq!(deleted["ok"], true);
+    let unresolved = f.call("list_connections", json!({})).await;
+    assert!(unresolved["data"]["connections"]["memberships"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|m| m["permalink"] == "legacy-0" && m["state"] == "unresolved"));
+    assert_eq!(
+        fs::read(f.connection_dir.path().join("connections.json")).unwrap(),
+        connection_bytes
+    );
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn concurrent_connection_requests_preserve_distinct_pairs_and_one_entity_per_nonce() {
+    let f = Fixture::new().await;
+    let args = json!({"name":"concurrent","requestId":"same-creation"});
+    let (a, b) = tokio::join!(
+        f.call("create_connection", args.clone()),
+        f.call("create_connection", args)
+    );
+    assert_eq!(a, b);
+    assert_eq!(f.connections.snapshot().unwrap().entities.len(), 1);
+    let id = a["data"]["connections"]["entities"][0]["id"]
+        .as_str()
+        .unwrap();
+    let (a, b) = tokio::join!(
+        f.call(
+            "attach_connection",
+            json!({"connectionId":id,"permalink":"legacy-0","requestId":"pair-a"})
+        ),
+        f.call_as(
+            "fixture-b",
+            "attach_connection",
+            json!({"connectionId":id,"permalink":"legacy-1","requestId":"pair-b"})
+        )
+    );
+    assert_eq!(a["ok"], true);
+    assert_eq!(b["ok"], true);
+    assert_eq!(f.connections.snapshot().unwrap().memberships.len(), 2);
+    assert_eq!(
+        f.call(
+            "attach_connection",
+            json!({"connectionId":"missing","permalink":"legacy-0","requestId":"unknown-entity"})
+        )
+        .await["error"]["code"],
+        "connectionNotFound"
+    );
+    assert_eq!(
+        f.call(
+            "create_connection",
+            json!({"name":"CONCURRENT","requestId":"duplicate-name"})
+        )
+        .await["error"]["code"],
+        "connectionNameExists"
+    );
+    assert_eq!(f.connections.snapshot().unwrap().entities.len(), 1);
+    for (name, args) in [
+        ("list_connections", json!({"root":"/private"})),
+        (
+            "create_connection",
+            json!({"name":123,"requestId":"wrong-type"}),
+        ),
+        (
+            "attach_connection",
+            json!({"connectionId":id,"permalink":"legacy-0","requestId":"wrong-key","path":"chosen.md"}),
+        ),
+        (
+            "detach_connection",
+            json!({"connectionId":id,"permalink":"legacy-0"}),
+        ),
+    ] {
+        assert_eq!(
+            f.call(name, args).await["error"]["code"],
+            "invalidArguments"
+        );
+    }
+    f.stop().await;
+}
+
+async fn send_connection_without_waiting(f: &Fixture, args: Value) -> tokio::net::TcpStream {
+    use tokio::io::AsyncWriteExt;
+    let port = url::Url::parse(f.host.endpoint()).unwrap().port().unwrap();
+    let body=json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_connection","arguments":args}}).to_string();
+    let mut socket = tokio::net::TcpStream::connect(("127.0.0.1", port))
+        .await
+        .unwrap();
+    socket.write_all(format!("POST /mcp HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer fixture-a\r\nAccept: application/json, text/event-stream\r\nMCP-Protocol-Version: 2025-11-25\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
+    socket
+}
+
+#[tokio::test]
+async fn disconnected_connection_creation_retries_one_persisted_entity() {
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let f = Fixture::with_gates(
+        None,
+        Some(Arc::new(HistoryGate {
+            entered: Mutex::new(Some(entered_tx)),
+            release: Mutex::new(release_rx),
+        })),
+    )
+    .await;
+    let args = json!({"name":"response lost","requestId":"lost-connection"});
+    let socket = send_connection_without_waiting(&f, args.clone()).await;
+    tokio::time::timeout(Duration::from_secs(5), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(f.connections.snapshot().unwrap().entities.is_empty());
+    drop(socket);
+    release_tx.send(()).unwrap();
+    let result = f.call("create_connection", args.clone()).await;
+    assert_eq!(result["ok"], true);
+    assert_eq!(result, f.call("create_connection", args).await);
+    let state = f.connections.snapshot().unwrap();
+    assert_eq!(state.entities.len(), 1);
+    assert_eq!(
+        state.entities[0].id,
+        result["data"]["connections"]["entities"][0]["id"]
+    );
+    assert!(state.memberships.is_empty());
+    f.stop().await;
+}
+
+#[tokio::test]
+async fn root_switch_drains_a_disconnected_accepted_connection_and_rejects_new_writes() {
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let f = Fixture::with_gates(
+        None,
+        Some(Arc::new(HistoryGate {
+            entered: Mutex::new(Some(entered_tx)),
+            release: Mutex::new(release_rx),
+        })),
+    )
+    .await;
+    let socket = send_connection_without_waiting(
+        &f,
+        json!({"name":"accepted before close","requestId":"retiring"}),
+    )
+    .await;
+    tokio::time::timeout(Duration::from_secs(5), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    drop(socket);
+    let manager = f.managers[0].clone();
+    let next_root = f.roots[1].path().to_path_buf();
+    let switch =
+        tokio::task::spawn_blocking(move || manager.select(next_root.to_str().unwrap(), false));
+    let scope = f.scopes[0].clone();
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        tokio::task::spawn_blocking(move || scope.wait_until_stopped()),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(!switch.is_finished());
+    assert_eq!(
+        f.call(
+            "create_connection",
+            json!({"name":"rejected","requestId":"after-close"})
+        )
+        .await["error"]["code"],
+        "scopeRevoked"
+    );
+    assert!(f.connections.snapshot().unwrap().entities.is_empty());
+    release_tx.send(()).unwrap();
+    let selected = tokio::time::timeout(Duration::from_secs(5), switch)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert_ne!(
+        selected.generation.as_deref(),
+        Some(f.scopes[0].generation.as_str())
+    );
+    assert_eq!(
+        f.managers[0]
+            .scope()
+            .unwrap()
+            .list_connections(None)
+            .unwrap()["connections"]["entities"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let state = f.connections.snapshot().unwrap();
+    assert_eq!(state.entities.len(), 1);
+    assert_eq!(state.entities[0].name, "accepted before close");
+    assert_eq!(
+        f.call_as("fixture-b", "list_connections", json!({})).await["data"]["connections"]
+            ["entities"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
     f.stop().await;
 }
