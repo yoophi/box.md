@@ -1,6 +1,6 @@
 use crate::{
     domain::site_browser::{
-        BrowserError, SiteAction, SiteAddress, SiteBounds, SiteBrowserSnapshot,
+        BrowserError, SiteAction, SiteAddress, SiteBounds, SiteBrowserSnapshot, SiteSelection,
     },
     ports::site_browser_host::SiteBrowserHost,
 };
@@ -183,6 +183,141 @@ impl SiteBrowserHost for NativeSiteBrowser {
         let _operation = self.operations.lock().map_err(error)?;
         self.current()
     }
+    fn selection(&self) -> Result<SiteSelection, BrowserError> {
+        let _operation = self.operations.lock().map_err(error)?;
+        let view = self
+            .app
+            .get_webview(LABEL)
+            .ok_or_else(|| error("먼저 사이트 주소를 열어주세요."))?;
+        capture_selection(&view)
+    }
+}
+
+#[cfg(target_os = "macos")]
+const SELECTION_SCRIPT: &str = r#"(() => {
+  const text = window.getSelection()?.toString() ?? "";
+  if (new TextEncoder().encode(text).length > 262144) {
+    return JSON.stringify({ kind: "tooLarge" });
+  }
+  if (document.title.length > 512) {
+    return JSON.stringify({ kind: "titleTooLong" });
+  }
+  return JSON.stringify({
+    kind: "selection",
+    url: window.location.href,
+    title: document.title,
+    text,
+  });
+})()"#;
+
+#[cfg(target_os = "macos")]
+#[derive(serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+enum SelectionResponse {
+    Selection {
+        url: String,
+        title: String,
+        text: String,
+    },
+    TooLarge,
+    TitleTooLong,
+}
+
+#[cfg(target_os = "macos")]
+fn parse_selection(value: &str) -> Result<SiteSelection, BrowserError> {
+    match serde_json::from_str::<SelectionResponse>(value).map_err(|_| {
+        BrowserError::new(
+            "selectionScript",
+            "사이트의 선택 영역을 확인하지 못했습니다. 다시 시도해주세요.",
+        )
+    })? {
+        SelectionResponse::Selection { url, title, text } => SiteSelection::new(&url, &title, text),
+        SelectionResponse::TooLarge => Err(BrowserError::new(
+            "selectionTooLarge",
+            "선택 영역이 너무 큽니다. 더 작은 영역을 선택해주세요.",
+        )),
+        SelectionResponse::TitleTooLong => Err(BrowserError::new(
+            "selectionTitle",
+            "사이트 제목이 너무 깁니다.",
+        )),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn capture_selection(view: &tauri::Webview) -> Result<SiteSelection, BrowserError> {
+    use block2::RcBlock;
+    use objc2::runtime::AnyObject;
+    use objc2_foundation::{NSError, NSString};
+
+    let (send, receive) = std::sync::mpsc::sync_channel(1);
+    view.with_webview(move |platform| {
+        let send_callback = send.clone();
+        let result = unsafe {
+            (platform.inner() as *const objc2_web_kit::WKWebView)
+                .as_ref()
+                .ok_or_else(|| {
+                    BrowserError::new(
+                        "browser",
+                        "사이트 브라우저를 확인하지 못했습니다.",
+                    )
+                })
+                .map(|native| {
+                    let handler = RcBlock::new(
+                        move |value: *mut AnyObject, script_error: *mut NSError| {
+                            let result = if !script_error.is_null() || value.is_null() {
+                                Err(BrowserError::new(
+                                    "selectionScript",
+                                    "사이트의 선택 영역을 확인하지 못했습니다. 다시 시도해주세요.",
+                                ))
+                            } else {
+                                // WebKit returns the JSON string produced by SELECTION_SCRIPT.
+                                (&*value)
+                                    .downcast_ref::<NSString>()
+                                    .map(|value| value.to_string())
+                                    .ok_or_else(|| {
+                                        BrowserError::new(
+                                            "selectionScript",
+                                            "사이트의 선택 영역을 확인하지 못했습니다. 다시 시도해주세요.",
+                                        )
+                                    })
+                                    .and_then(|value| parse_selection(&value))
+                            };
+                            let _ = send_callback.send(result);
+                        },
+                    );
+                    native.evaluateJavaScript_completionHandler(
+                        &NSString::from_str(SELECTION_SCRIPT),
+                        Some(&handler),
+                    );
+                })
+        };
+        if let Err(cause) = result {
+            let _ = send.send(Err(cause));
+        }
+    })
+    .map_err(error)?;
+    receive_selection(receive, std::time::Duration::from_secs(5))
+}
+
+#[cfg(target_os = "macos")]
+fn receive_selection(
+    receive: std::sync::mpsc::Receiver<Result<SiteSelection, BrowserError>>,
+    timeout: std::time::Duration,
+) -> Result<SiteSelection, BrowserError> {
+    receive.recv_timeout(timeout).map_err(|_| {
+        BrowserError::new(
+            "selectionTimeout",
+            "선택 영역 확인이 지연되고 있습니다. 다시 시도해주세요.",
+        )
+    })?
+}
+
+#[cfg(not(target_os = "macos"))]
+fn capture_selection(_: &tauri::Webview) -> Result<SiteSelection, BrowserError> {
+    Err(BrowserError::new(
+        "unsupported",
+        "이 운영체제에서는 사이트 선택 영역 저장을 사용할 수 없습니다.",
+    ))
 }
 
 type HistoryAvailability = (Option<bool>, Option<bool>, Option<bool>);
@@ -236,4 +371,39 @@ fn history(
     }
     .map_err(error)?;
     Ok((None, None, None))
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod selection_tests {
+    use super::*;
+
+    #[test]
+    fn parses_atomic_page_selection_and_rejects_script_sentinels() {
+        let selection = parse_selection(
+            r#"{"kind":"selection","url":"https://example.com/new","title":"새 제목","text":"선택 🌱\n둘째 줄"}"#,
+        )
+        .unwrap();
+        assert_eq!(selection.url, "https://example.com/new");
+        assert_eq!(selection.title, "새 제목");
+        assert_eq!(selection.text, "선택 🌱\n둘째 줄");
+        assert_eq!(
+            parse_selection(r#"{"kind":"tooLarge"}"#).unwrap_err().code,
+            "selectionTooLarge"
+        );
+        assert_eq!(
+            parse_selection(r#"{"kind":"unknown"}"#).unwrap_err().code,
+            "selectionScript"
+        );
+    }
+
+    #[test]
+    fn reports_a_callback_timeout_without_page_data() {
+        let (_send, receive) = std::sync::mpsc::sync_channel(1);
+        assert_eq!(
+            receive_selection(receive, std::time::Duration::ZERO)
+                .unwrap_err()
+                .code,
+            "selectionTimeout"
+        );
+    }
 }

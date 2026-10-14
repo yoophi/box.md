@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+pub const MAX_SITE_SELECTION_BYTES: usize = 256 * 1024;
+
 #[derive(Debug, Serialize)]
 pub struct BrowserError {
     pub code: &'static str,
@@ -56,6 +58,43 @@ impl SiteAddress {
     }
     pub fn url(&self) -> &Url {
         &self.0
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SiteSelection {
+    pub url: String,
+    pub title: String,
+    pub text: String,
+}
+impl SiteSelection {
+    pub fn new(url: &str, title: &str, text: String) -> Result<Self, BrowserError> {
+        let address = SiteAddress::parse(url)?;
+        if text.trim().is_empty() {
+            return Err(BrowserError::new(
+                "selectionEmpty",
+                "사이트에서 저장할 텍스트를 선택해주세요.",
+            ));
+        }
+        if text.len() > MAX_SITE_SELECTION_BYTES {
+            return Err(BrowserError::new(
+                "selectionTooLarge",
+                "선택 영역이 너무 큽니다. 더 작은 영역을 선택해주세요.",
+            ));
+        }
+        let title = title.replace(['\r', '\n'], " ").trim().to_owned();
+        if title.chars().count() > 512 {
+            return Err(BrowserError::new(
+                "selectionTitle",
+                "사이트 제목이 너무 깁니다.",
+            ));
+        }
+        Ok(Self {
+            url: address.url().to_string(),
+            title,
+            text,
+        })
     }
 }
 
@@ -216,5 +255,51 @@ mod tests {
         assert!(state.title.is_empty());
         state.finished(&two);
         assert!(!state.loading);
+    }
+
+    #[test]
+    fn validates_selection_without_changing_its_text() {
+        let text = " 첫 줄\r\n둘째 줄 🌱  ".to_owned();
+        let selection = SiteSelection::new(
+            " HTTPS://EXAMPLE.COM/article?q=1#part ",
+            "  문서\r\n제목  ",
+            text.clone(),
+        )
+        .unwrap();
+        assert_eq!(selection.url, "https://example.com/article?q=1#part");
+        assert_eq!(selection.title, "문서  제목");
+        assert_eq!(selection.text, text);
+    }
+
+    #[test]
+    fn rejects_empty_oversized_or_untrusted_selection_fields() {
+        assert_eq!(
+            SiteSelection::new("https://example.com", "title", " \n\t".into())
+                .unwrap_err()
+                .code,
+            "selectionEmpty"
+        );
+        assert_eq!(
+            SiteSelection::new(
+                "https://example.com",
+                "title",
+                "가".repeat(MAX_SITE_SELECTION_BYTES / 3 + 1),
+            )
+            .unwrap_err()
+            .code,
+            "selectionTooLarge"
+        );
+        assert_eq!(
+            SiteSelection::new("file:///private", "title", "selected".into())
+                .unwrap_err()
+                .code,
+            "address"
+        );
+        assert_eq!(
+            SiteSelection::new("https://example.com", &"가".repeat(513), "selected".into())
+                .unwrap_err()
+                .code,
+            "selectionTitle"
+        );
     }
 }

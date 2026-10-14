@@ -1,6 +1,6 @@
 use crate::{
     domain::site_browser::{
-        BrowserError, SiteAction, SiteAddress, SiteBounds, SiteBrowserSnapshot,
+        BrowserError, SiteAction, SiteAddress, SiteBounds, SiteBrowserSnapshot, SiteSelection,
     },
     ports::site_browser_host::SiteBrowserHost,
 };
@@ -31,6 +31,14 @@ mod tests {
         }
         fn snapshot(&self) -> Result<SiteBrowserSnapshot, BrowserError> {
             unreachable!()
+        }
+        fn selection(&self) -> Result<SiteSelection, BrowserError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            SiteSelection::new(
+                "https://example.com/article",
+                "문서 제목",
+                "선택한 원문".into(),
+            )
         }
     }
     #[test]
@@ -80,6 +88,15 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert!(!service.layout(None).unwrap().open);
         assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            service.selection().unwrap(),
+            SiteSelection {
+                url: "https://example.com/article".into(),
+                title: "문서 제목".into(),
+                text: "선택한 원문".into(),
+            }
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
     }
 }
 impl SiteBrowserService {
@@ -104,5 +121,8 @@ impl SiteBrowserService {
     }
     pub fn snapshot(&self) -> Result<SiteBrowserSnapshot, BrowserError> {
         self.host.snapshot()
+    }
+    pub fn selection(&self) -> Result<SiteSelection, BrowserError> {
+        self.host.selection()
     }
 }

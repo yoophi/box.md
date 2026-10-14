@@ -100,3 +100,11 @@ captured_at: "2026-10-14T14:00:00.000Z"
 | 전체 회귀 | pnpm typecheck/test/build, Rust fmt/check/test, 기존 사이트·문서 생성·ACP browser 검증 |
 
 자동 fixture는 상태 경쟁과 formatter 회귀를 빠르게 확인하는 근거로 사용한다. gh-94 완료 판정에는 현재 source로 빌드한 실제 macOS child WebView에서 선택하고 실제 작업 디렉터리의 파일을 확인한 별도 근거가 필요하다.
+
+## native 선택 수집 구현 결과 (gh-92)
+
+`SiteSelection::new`가 HTTP/HTTPS URL, credential 금지, 512자 제목, 비어 있지 않은 256 KiB 이하 UTF-8 원문을 다시 검증한다. 제목의 CR/LF는 공백으로 바꾸지만 선택 원문의 공백과 줄바꿈은 변경하지 않는다. service와 host port에 `selection`을 추가했고, Tauri의 `site_browser_selection` command는 다른 사이트 명령과 같은 trusted main WebView 검사를 전후에 적용한다. capability에는 main WebView만 유지한 채 새 command 권한만 추가했다.
+
+macOS adapter는 현재 child `WKWebView`에서 하나의 JavaScript 표현식으로 URL·제목·선택 텍스트를 함께 읽는다. `TextEncoder`로 큰 선택을 IPC 전달 전에 거부하고, callback의 JSON 문자열을 Rust DTO로 해석한 뒤 domain 검증을 적용한다. JavaScript 오류와 잘못된 결과, 선택 없음, 큰 선택, 긴 제목, 5초 timeout을 구분한다. 다른 플랫폼은 `unsupported`를 반환한다.
+
+Rust 검증은 domain 6개, site service 1개, command 신뢰·capability 2개, native parsing·timeout 2개를 개별 실행했고 모두 통과했다. 이어서 `cargo fmt --all -- --check`, production `cargo check -p box-desktop`, 전체 native library 103개 통과와 1개 worker fixture ignore를 확인했다. 실제 DOM selection callback과 remote child의 실제 invoke 거부는 현재 source로 빌드하는 gh-94 감사에서 다시 확인한다.

@@ -498,10 +498,13 @@ dependencies = [
 name = "box-desktop"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "box-document-store",
  "chrono",
  "getrandom 0.4.3",
  "local-mcp-server",
+ "objc2",
+ "objc2-foundation",
  "objc2-web-kit",
  "pulldown-cmark",
  "reqwest 0.12.28",

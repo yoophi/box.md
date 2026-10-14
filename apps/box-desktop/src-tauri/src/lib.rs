@@ -302,6 +302,7 @@ pub fn run() {
             inbound::site_browser_commands::site_browser_layout,
             inbound::site_browser_commands::site_browser_action,
             inbound::site_browser_commands::site_browser_snapshot,
+            inbound::site_browser_commands::site_browser_selection,
             inbound::connection_commands::list_connections,
             inbound::connection_commands::create_connection_entity,
             inbound::connection_commands::attach_document_connection,

@@ -25,6 +25,7 @@ fn main() {
             "site_browser_layout",
             "site_browser_action",
             "site_browser_snapshot",
+            "site_browser_selection",
         ]),
     ))
     .expect("failed to build box.md permissions");
