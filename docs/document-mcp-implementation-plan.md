@@ -145,3 +145,7 @@ gh-60은 gh-62([scope admission 및 루트 전환/종료 drain](document-scope-l
 부모 gh-20의 기준1~9와 위 작업 배분을 대조했다. 기존 ACP 공유 client/core의 전달 경로와 capability 분기, 문서 service/repository, TS metadata 및 연결 저장소 소스를 읽어 재사용/확장 경계를 확인했다. 문서 두 개의 상대 링크를 검사해 누락이 없고 AW 계획 커밋의 remote branch SHA가 일치함을 확인했다. 하위 gh-49~gh-53은 모두 gh-20에 등록하며 위 선행 관계를 유지한다.
 
 이번 단위는 조사·계약·작업 등록 문서만 변경한다. 코드 실행에 관한 기본 검증은 마지막 구현 gh-46 결과를 참고할 수 있지만 이 계획의 도구 구현 완료 근거로 사용하지 않는다. 공용 crate compile/HTTP 동작, Box 문서 도구, 실제 ACP 및 native 화면 검증은 각 후속 작업에 남아 있다.
+
+## gh-52 native·ACP·UI 순차 하위 작업
+
+2026-10-14에 gh-75(native MCP host/generation-run grant 및 main 명령) → gh-76(AW 공유 HTTP ACP 주입·credential 수명·지원 진단) → gh-77(main 변경 이벤트/clean 갱신/dirty·undo 보호) → gh-78(전체 통합 감사)로 등록했다. gh-75는 gh-51, 다음 작업은 직전 작업에 의존하고 gh-52는 최종 gh-78에 의존한다. 기존 gh-51/gh-23/gh-32 및 gh-53/부모 gh-20의 관계를 유지한다. [구현 경계와 검증 계획](document-mcp-native-integration-plan.md)을 따른다. 등록과 계획은 실제 native 연동 완료를 뜻하지 않는다.
