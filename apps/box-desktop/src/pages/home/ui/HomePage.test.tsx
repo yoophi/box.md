@@ -13,7 +13,7 @@ import { act } from "@testing-library/react";
 vi.mock("@/entities/agent-chat", () => ({ createChatClient: vi.fn() }));
 
 type Created = { path: string; content: string; revision: string; permalink: string };
-const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]>, created: {} as Record<string, Created>, requests: {} as Record<string, Created>, createGate: null as Promise<void> | null, openGate: null as Promise<void> | null, saveGate: null as Promise<void> | null, listGate: null as Promise<void> | null, deleted: false, failCreate: false, loseResponse: false, rejectIdentityOnce: false }));
+const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]>, created: {} as Record<string, Created>, requests: {} as Record<string, Created>, createGate: null as Promise<void> | null, openGate: null as Promise<void> | null, saveGate: null as Promise<void> | null, listGate: null as Promise<void> | null, deleted: false, failSaveConflict: false, failCreate: false, loseResponse: false, rejectIdentityOnce: false }));
 const eventBus = vi.hoisted(() => ({ listeners: new Map<string, Set<(event: { payload: unknown }) => void>>() }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, args: Record<string, unknown>) => {
@@ -66,6 +66,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, a
   }
   if (command === "save_document") {
     if (native.saveGate) await native.saveGate;
+    if (native.failSaveConflict) throw { code: "conflict", message: "외부 저장 충돌" };
     if (native.rejectIdentityOnce) { native.rejectIdentityOnce = false; throw {code:"duplicatePermalink", message:"identity collision"}; }
     const created = native.created[String(args.path)];
     if (created) { created.content = String(args.content); created.revision += "1"; return { ...created }; }
@@ -98,7 +99,7 @@ beforeEach(() => {
   native.content = "---\nsummary: 원래 요약\ncustom: {enabled: true}\n---\n# 문서\n\n안녕 🌱\n";
   native.revision = 1; native.versions = []; native.path = "/workspace/note.md"; native.urls = null; native.targetContent = null; native.comments = {};
   native.folder = null; native.brokenRoots = []; native.selectionFailures = []; native.selectedRoot = null; native.workspaceWarnings = [];
-  native.created = {}; native.requests = {}; native.createGate = null; native.openGate = null; native.saveGate = null; native.listGate = null; native.deleted = false; native.failCreate = false; native.loseResponse = false;
+  native.created = {}; native.requests = {}; native.createGate = null; native.openGate = null; native.saveGate = null; native.listGate = null; native.deleted = false; native.failSaveConflict = false; native.failCreate = false; native.loseResponse = false;
   native.rejectIdentityOnce = false; eventBus.listeners.clear();
   vi.mocked(save).mockClear(); vi.mocked(invoke).mockClear();
 });
@@ -295,6 +296,27 @@ describe("document workspace flows", () => {
       (screen.getByRole("textbox", { name: "permalink" }) as HTMLInputElement)
         .value,
     ).toBe("local-save");
+  });
+  it("saves a dirty external change with the old revision and preserves the draft on conflict", async () => {
+    const user = userEvent.setup();
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const source = screen.getByRole("textbox", { name: "Markdown 원문" }) as HTMLTextAreaElement;
+    await user.type(source, "\n보존할 로컬 초안");
+    native.content = "# 외부 변경";
+    native.revision = 2;
+    await emitDocumentChange({
+      generation: "scope:/workspace",
+      kind: "documentChanged",
+      document: { path: "note.md", revision: "2" },
+    });
+    native.failSaveConflict = true;
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    expect(await screen.findByText("외부 저장 충돌")).toBeTruthy();
+    expect(source.value).toContain("보존할 로컬 초안");
+    const saveCall = vi.mocked(invoke).mock.calls.find(([command]) => command === "save_document");
+    expect((saveCall?.[1] as Record<string, unknown>).expectedRevision).toBe("1");
   });
   it("stages a dated link on a legacy document without changing its file or identity before apply/save", async () => {
     const user = userEvent.setup(); render(<HomePage />);
