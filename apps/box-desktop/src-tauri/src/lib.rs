@@ -5,7 +5,7 @@ mod infrastructure;
 mod ports;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 struct ExitGuard(AtomicBool);
 
