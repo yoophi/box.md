@@ -97,3 +97,16 @@ cargo test --manifest-path vendor/agentic-workspace/Cargo.toml -p workbench-core
 | 앱 종료 시 다른 client run 유지 | `owner_after_desktop`의 scripted/실제 ACP 2개 시나리오 |
 | AW와 box.md 검사 | AW 105+5+2 테스트와 box.md 설치 agent/HomePage 통합 4개 테스트 |
 | 실제 화면 및 고정 commit | 격리 macOS Tauri 검증, AW `c3aafbe`, box.md submodule pin |
+
+## gh-3 최종 감사
+
+| 제품 요구 | 구현 및 검증 |
+| --- | --- |
+| AW 공유 라이브러리 사용 | `workbench-client`, `workbench-agent-client`, `workbench-desktop-client`가 연결·명령·이벤트·창 자격 증명을 담당한다. |
+| 독립 Workbench 서버의 HTTP/WS 연결 | Tauri sidecar를 `DesktopConnection`으로 준비하고 React는 창 token으로 HTTP 명령과 WebSocket 이벤트를 사용한다. |
+| Tauri 백엔드 역할 제한 | 네이티브 계층은 서버 준비, 창 identity/token, lease 수명만 소유하며 ACP prompt나 응답을 IPC로 중계하지 않는다. |
+| prompt 없는 세션과 지속 대화 | `run.createSession`으로 idle 세션을 만든 뒤 같은 run에서 여러 prompt, 권한 응답, 취소를 수행한다. |
+| 앱 종료와 다른 client 격리 | 창 폐기와 lease 반환은 다른 owner의 run을 닫지 않으며 `owner_after_desktop` 실제 ACP 시나리오로 검증했다. |
+| 실제 제품 화면 | 격리 macOS 앱에서 설치 Codex ACP의 준비, 두 턴 응답, 명시적 종료와 문서 불변을 확인했다. |
+
+활성 box.md 소스에는 자체 stdio ACP 런타임이 없으며, 공유 기능 확장과 보완은 AW에서 구현한 뒤 고정 submodule로 소비한다. gh-2, gh-21, gh-22, gh-23, gh-25의 완료 근거를 합쳐 ACP 세션 생성 및 채팅 기능의 전체 범위를 충족한다.
