@@ -63,10 +63,27 @@ desktop 검증 39개에는 독립 생성, 부분 연결/해제, 미저장 식별
 | 3. 문서 칩·기존 엔티티 연결·해제 | 실제 React 칩과 선택/해제, 미저장 ID 쓰기 차단 | 자동 검증 충족 |
 | 4. 엔티티 선택·관련 문서 이동 | 목록/최신 제목 표시, 이동, 저장·버리기·취소, 누락/중복 이동 차단 | 자동 검증 충족 |
 | 5. 부분 해제 후 문서·다른 관계 보존 | UI 나머지 칩/관계 및 문서 무변경, native 원본 파일 바이트 보존 | 자동 검증 충족 |
-| 6. 저장·앱 재실행 복원, 제목/경로 변경 보존 | browser reload, 새 OS 저장소 프로세스, 개명/하위 디렉터리 이동 후 관계·탐색 | **부분 충족. 실제 macOS 앱 재실행 gh-38 미완료** |
+| 6. 저장·앱 재실행 복원, 제목/경로 변경 보존 | browser reload, 새 OS 저장소 프로세스, 개명/하위 디렉터리 이동 후 관계·탐색, 격리된 실제 macOS 앱 종료·재실행 후 동일 UUID·관계·칩·관련 문서 이동 | 충족 |
 | 7. 본문 wikilink 존재와 독립 | 실제 원문 작성/삭제·저장 후 관계 불변, native 문서 저장 후 연결 파일 바이트 불변 | 자동 검증 충족 |
-| 8. 전체 동작 검증·기본 검사 | 연결 Chromium 검증 및 native 테스트, 아래 기본 검사 | **gh-38 완료 후 gh-37에서 최종 판정** |
+| 8. 전체 동작 검증·기본 검사 | 연결 Chromium 검증 및 native 테스트, 아래 기본 검사, gh-38 실제 macOS 앱 재실행 검증 | 충족 |
 
-화면 근거는 gh-36의 Chromium 캡처다. 현재 macOS 화면 도구는 `cgWindowNotFound` 오류를 반환하므로 실제 앱 종료·재실행 및 복원된 칩의 화면 증거가 없다. gh-38, gh-37, 상위 gh-19는 미완료로 유지한다.
+화면 근거는 gh-36의 Chromium 캡처와 gh-38의 실제 macOS Tauri 창 관찰이다. gh-38은 별도 bundle identifier와 임시 작업 디렉터리를 사용해 사용자 앱·문서·설정을 건드리지 않고 종료·재실행 복원을 확인했다. 상세 근거는 [네이티브 앱 재실행 검증](connection-native-restart-audit.md)에 기록했다.
 
 gh-39 검증 결과는 Chromium 전체 37개, desktop 단위 39개와 연결 저장소 7개 통과다. 저장소 peer helper는 일반 실행에서 제외되지만 부모 테스트가 새 reader 1개와 동시 writer 2개를 별도로 실행해 각각 통과했다. `pnpm check-types`, `pnpm build`, `cargo fmt --all -- --check`, `cargo check --workspace --all-targets`도 통과했다. 로그는 `/tmp/box-md-gh39-{connections-browser,browser,native,types,tests,build,fmt,rust}.log`에 있다.
+
+## 실제 macOS 앱 재실행 검증 (gh-38)
+
+2026-10-14에 `box.md GH38QA`라는 별도 제품명과 `com.yoophi.box-md.gh38` bundle identifier로 debug 앱을 빌드했다. `/tmp/box-md-gh38.pJIOCw`의 임시 문서 두 개를 작업 디렉터리로 선택하고 `재실행 검토` 엔티티를 생성해 두 문서를 연결했다. 저장된 엔티티 ID는 `f504f75a-f6e4-4dd1-a1e3-0cfd4ead3dcc`였다.
+
+창의 닫기 버튼으로 앱을 종료하고 기존 프로세스가 사라진 것을 확인한 뒤 같은 bundle identifier를 다시 실행했다. 재실행 프로세스는 이전과 다른 PID였으며, 작업 디렉터리와 문서 목록이 자동 복원됐다. 둘째 문서에서 `재실행 검토` 칩을 선택했을 때 첫 문서와 둘째 문서가 관련 문서로 표시됐고, 첫 문서 버튼으로 실제 이동했다. 이동 뒤에도 동일한 칩과 관련 문서 목록이 표시됐다.
+
+앱 데이터 디렉터리의 `connections.json`에는 재실행 전후 같은 UUID와 두 permalink 관계가 남았다. 두 Markdown 파일의 SHA-256은 각각 `c074fee01e948a2c36d375b2702cf4c264f92a06375e8cd1656e5331115c6f01`, `960e400b98108696d9362d9bb39678404c28cd154e11e0101cb8d6f2510ce281`로 유지되어 연결 생성과 복원 과정이 문서 원본을 변경하지 않았음을 확인했다.
+
+검증 명령은 다음과 같다.
+
+```sh
+pnpm --filter @box/desktop tauri build --debug --bundles app --no-sign \
+  --config '{"productName":"box.md GH38QA","identifier":"com.yoophi.box-md.gh38"}'
+```
+
+검증이 끝난 뒤 격리 앱을 종료하고 해당 app bundle, 임시 작업 디렉터리, 격리 identifier의 Application Support·WebKit·Preferences·Caches만 삭제했다. 기존 `com.yoophi.box-md` 데이터와 다른 QA 앱은 유지했다.
