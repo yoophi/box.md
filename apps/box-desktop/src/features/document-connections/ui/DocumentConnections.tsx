@@ -4,6 +4,7 @@ import type { ConnectionSnapshot, WorkspaceSnapshot } from "@box/contracts";
 import { attachConnection, createConnection, detachConnection, listConnections } from "@/entities/connection";
 import { errorMessage, useDocumentTargets } from "@/entities/document";
 import { isDesktop } from "@/shared/lib/runtime";
+import { listenDocumentChanges } from "@/entities/document-change";
 
 interface Props {
   path: string | null;
@@ -25,7 +26,6 @@ function identity(path: string | null, baseline: string, content: string) {
     return { id: saved, writable: true, reason: "" };
   } catch { return { id: saved, writable: false, reason: "문서의 고정 링크 속성을 확인해주세요." }; }
 }
-
 export function DocumentConnections(props: Props) {
   const document = identity(props.path, props.baseline, props.content);
   const context = JSON.stringify([props.path, document.id, document.writable]);
@@ -51,6 +51,16 @@ export function DocumentConnections(props: Props) {
   }, []);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; ++sequence.current; }; }, []);
   useEffect(() => { setNotice(""); void load(); }, [load, props.path, props.baseline]);
+  useEffect(() => {
+    if (!isDesktop()) return;
+    let disposed = false, stop: (() => void) | undefined;
+    void listenDocumentChanges((change) => {
+      if (change.kind === "connectionsChanged" && change.generation === props.workspace?.generation) void load();
+    }).then((unlisten) => {
+      if (disposed) unlisten(); else stop = unlisten;
+    }).catch((cause) => { if (!disposed) setError(errorMessage(cause)); });
+    return () => { disposed = true; stop?.(); };
+  }, [load, props.workspace?.generation]);
   const entities = snapshot?.entities ?? [];
   const connected = entities.filter((entity) => snapshot?.memberships.some((edge) => edge.connectionId === entity.id && edge.permalink === document.id));
   const available = entities.filter((entity) => !connected.some((item) => item.id === entity.id));

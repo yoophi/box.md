@@ -13,7 +13,8 @@ import { act } from "@testing-library/react";
 vi.mock("@/entities/agent-chat", () => ({ createChatClient: vi.fn() }));
 
 type Created = { path: string; content: string; revision: string; permalink: string };
-const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]>, created: {} as Record<string, Created>, requests: {} as Record<string, Created>, createGate: null as Promise<void> | null, failCreate: false, loseResponse: false, rejectIdentityOnce: false }));
+const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]>, created: {} as Record<string, Created>, requests: {} as Record<string, Created>, createGate: null as Promise<void> | null, openGate: null as Promise<void> | null, saveGate: null as Promise<void> | null, listGate: null as Promise<void> | null, deleted: false, failCreate: false, loseResponse: false, rejectIdentityOnce: false }));
+const eventBus = vi.hoisted(() => ({ listeners: new Map<string, Set<(event: { payload: unknown }) => void>>() }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, args: Record<string, unknown>) => {
   if (command.startsWith("site_browser_")) return { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false };
@@ -21,6 +22,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, a
   if (command === "revoke_document_mcp_grant") return null;
   if (command === "list_connections") return { version: 1, entities: [], memberships: [] };
   if (command === "list_workspace_documents" || command === "select_document_workspace") {
+    if (command === "list_workspace_documents" && native.listGate) await native.listGate;
     if (native.brokenRoots.includes(String(args.path))) throw new Error("작업 디렉터리에 접근할 수 없습니다.");
     if (command === "select_document_workspace") {
       if (native.selectionFailures.includes(String(args.path))) throw new Error("작업 루트 연결 실패");
@@ -28,7 +30,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, a
     }
     const generation = native.selectedRoot === args.path ? `scope:${args.path}` : undefined;
     if (args.path !== "/workspace") return { path: args.path, generation, documents: [{ path: `${args.path}/other.md`, name: "other.md", relativePath: "other.md" }], truncated: false, warnings: native.workspaceWarnings };
-    return { path: "/workspace", generation, documents: [{ path: native.path, name: native.path.split("/").pop(), relativePath: native.path.split("/").pop() }, ...(native.targetContent === null ? [] : [{ path: "/workspace/target.md", name: "target.md", relativePath: "target.md" }]), ...Object.values(native.created).map((doc) => ({ path: doc.path, name: doc.path.split("/").pop(), relativePath: doc.path.split("/").pop() }))], truncated: false, warnings: native.workspaceWarnings };
+    return { path: "/workspace", generation, documents: [...(native.deleted ? [] : [{ path: native.path, name: native.path.split("/").pop(), relativePath: native.path.split("/").pop() }]), ...(native.targetContent === null ? [] : [{ path: "/workspace/target.md", name: "target.md", relativePath: "target.md" }]), ...Object.values(native.created).map((doc) => ({ path: doc.path, name: doc.path.split("/").pop(), relativePath: doc.path.split("/").pop() }))], truncated: false, warnings: native.workspaceWarnings };
   }
   if (command === "create_document" || command === "duplicate_document") {
     if (native.createGate) await native.createGate;
@@ -58,8 +60,12 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, a
     if (native.loseResponse) { native.loseResponse = false; throw new Error("response lost"); }
     return { document: { ...doc } };
   }
-  if (command === "open_document") return native.created[String(args.path)] ?? { path: args.path, content: args.path === "/workspace/target.md" ? native.targetContent : native.content, revision: String(native.revision) };
+  if (command === "open_document") {
+    if (native.openGate) await native.openGate;
+    return native.created[String(args.path)] ?? { path: args.path, content: args.path === "/workspace/target.md" ? native.targetContent : native.content, revision: String(native.revision) };
+  }
   if (command === "save_document") {
+    if (native.saveGate) await native.saveGate;
     if (native.rejectIdentityOnce) { native.rejectIdentityOnce = false; throw {code:"duplicatePermalink", message:"identity collision"}; }
     const created = native.created[String(args.path)];
     if (created) { created.content = String(args.content); created.revision += "1"; return { ...created }; }
@@ -78,7 +84,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, a
 }) }));
 vi.mock("@tauri-apps/plugin-deep-link", () => ({ getCurrent: async () => native.urls, onOpenUrl: async () => () => {} }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: async () => {} }));
-vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: async (name: string, receive: (event: { payload: unknown }) => void) => { let listeners = eventBus.listeners.get(name); if (!listeners) eventBus.listeners.set(name, listeners = new Set()); listeners.add(receive); return () => listeners!.delete(receive); } }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ onCloseRequested: async () => () => {}, close: async () => {} }) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: async (options: { directory?: boolean }) => options.directory ? native.folder : null, save: vi.fn(async () => null) }));
 
@@ -92,12 +98,204 @@ beforeEach(() => {
   native.content = "---\nsummary: 원래 요약\ncustom: {enabled: true}\n---\n# 문서\n\n안녕 🌱\n";
   native.revision = 1; native.versions = []; native.path = "/workspace/note.md"; native.urls = null; native.targetContent = null; native.comments = {};
   native.folder = null; native.brokenRoots = []; native.selectionFailures = []; native.selectedRoot = null; native.workspaceWarnings = [];
-  native.created = {}; native.requests = {}; native.createGate = null; native.failCreate = false; native.loseResponse = false;
-  native.rejectIdentityOnce = false;
+  native.created = {}; native.requests = {}; native.createGate = null; native.openGate = null; native.saveGate = null; native.listGate = null; native.deleted = false; native.failCreate = false; native.loseResponse = false;
+  native.rejectIdentityOnce = false; eventBus.listeners.clear();
   vi.mocked(save).mockClear(); vi.mocked(invoke).mockClear();
 });
 afterEach(() => { cleanup(); restorePanelLayout(); vi.restoreAllMocks(); });
 describe("document workspace flows", () => {
+  async function emitDocumentChange(payload: unknown) {
+    await act(async () => {
+      for (const receive of eventBus.listeners.get("box:document-change") ?? [])
+        receive({ payload });
+      await Promise.resolve();
+    });
+  }
+
+  it("applies an external MCP change to a clean document and uses its new revision on save", async () => {
+    const user = userEvent.setup();
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    native.content = "---\nsummary: 외부 변경\n---\n# 외부 문서\n\n새 본문";
+    native.revision = 2;
+    await emitDocumentChange({
+      generation: "scope:/workspace",
+      kind: "documentChanged",
+      document: { path: "note.md", revision: "2" },
+    });
+    expect(
+      await screen.findByRole("heading", { name: "외부 문서" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("외부에서 변경된 문서를 반영했습니다."),
+    ).toBeTruthy();
+    await user.type(
+      screen.getByRole("textbox", { name: "permalink" }),
+      "after-external",
+    );
+    await user.click(screen.getByRole("button", { name: "문서에 적용" }));
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(invoke)
+          .mock.calls.some(
+            ([command, args]) =>
+              command === "save_document" &&
+              (args as Record<string, unknown>).expectedRevision === "2",
+          ),
+      ).toBe(true),
+    );
+  });
+
+  it("keeps a dirty editor instance and draft when MCP changes or deletes the open document", async () => {
+    const user = userEvent.setup();
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const source = screen.getByRole("textbox", {
+      name: "Markdown 원문",
+    }) as HTMLTextAreaElement;
+    await user.type(source, "\n로컬 초안");
+    native.content = "# 외부 변경";
+    native.revision = 2;
+    await emitDocumentChange({
+      generation: "scope:/workspace",
+      kind: "documentChanged",
+      document: { path: "note.md", revision: "2" },
+    });
+    expect(screen.getByRole("textbox", { name: "Markdown 원문" })).toBe(source);
+    expect(source.value).toContain("로컬 초안");
+    expect(screen.getByText(/편집 중인 내용은 유지했으며/)).toBeTruthy();
+    native.deleted = true;
+    await emitDocumentChange({
+      generation: "scope:/workspace",
+      kind: "documentDeleted",
+      document: { path: "note.md", revision: "2" },
+    });
+    expect(source.value).toContain("로컬 초안");
+    expect(screen.getByText(/외부에서 삭제되었습니다/)).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /note.md/ })).toBeNull(),
+    );
+  });
+  it("keeps recoverable clean content while removing an externally deleted document from the list", async () => {
+    const user = userEvent.setup();
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    const original = native.content;
+    native.deleted = true;
+    await emitDocumentChange({
+      generation: "scope:/workspace",
+      kind: "documentDeleted",
+      document: { path: "note.md", revision: "1" },
+    });
+    expect(screen.getByRole("heading", { name: "note.md" })).toBeTruthy();
+    expect(screen.getByText(/복구할 수 있도록 유지했습니다/)).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Markdown 원문",
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe(original);
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /note.md/ })).toBeNull(),
+    );
+  });
+  it("runs a pending workspace refresh after a second event arrives during listing", async () => {
+    render(<HomePage />);
+    await screen.findByRole("button", { name: /note.md/ });
+    const calls = () =>
+      vi
+        .mocked(invoke)
+        .mock.calls.filter(
+          ([command]) => command === "list_workspace_documents",
+        ).length;
+    const before = calls();
+    let release!: () => void;
+    native.listGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await emitDocumentChange({
+      generation: "scope:/workspace",
+      kind: "connectionsChanged",
+      document: null,
+    });
+    await emitDocumentChange({
+      generation: "scope:/workspace",
+      kind: "connectionsChanged",
+      document: null,
+    });
+    native.listGate = null;
+    release();
+    await waitFor(() => expect(calls()).toBe(before + 2));
+  });
+  it("ignores stale generations and an external read that finishes after user input", async () => {
+    const user = userEvent.setup();
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    native.content = "# 무시할 이전 root";
+    native.revision = 2;
+    await emitDocumentChange({
+      generation: "scope:/old",
+      kind: "documentChanged",
+      document: { path: "note.md", revision: "2" },
+    });
+    expect(
+      screen.queryByRole("heading", { name: "무시할 이전 root" }),
+    ).toBeNull();
+    let release!: () => void;
+    native.openGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await emitDocumentChange({
+      generation: "scope:/workspace",
+      kind: "documentChanged",
+      document: { path: "note.md", revision: "2" },
+    });
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const source = screen.getByRole("textbox", {
+      name: "Markdown 원문",
+    }) as HTMLTextAreaElement;
+    await user.type(source, "\n입력 중 변경");
+    release();
+    native.openGate = null;
+    await waitFor(() => expect(source.value).toContain("입력 중 변경"));
+    expect(
+      screen.queryByRole("heading", { name: "무시할 이전 root" }),
+    ).toBeNull();
+  });
+  it("queues an MCP event during save without overwriting the saved result", async () => {
+    const user = userEvent.setup();
+    render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.type(
+      screen.getByRole("textbox", { name: "permalink" }),
+      "local-save",
+    );
+    await user.click(screen.getByRole("button", { name: "문서에 적용" }));
+    let release!: () => void;
+    native.saveGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await emitDocumentChange({
+      generation: "scope:/workspace",
+      kind: "documentChanged",
+      document: { path: "note.md", revision: "2" },
+    });
+    release();
+    native.saveGate = null;
+    await waitFor(() =>
+      expect(documentProperty(native.content, "permalink")).toBe("local-save"),
+    );
+    expect(
+      (screen.getByRole("textbox", { name: "permalink" }) as HTMLInputElement)
+        .value,
+    ).toBe("local-save");
+  });
   it("stages a dated link on a legacy document without changing its file or identity before apply/save", async () => {
     const user = userEvent.setup(); render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: /note.md/ }));

@@ -7,6 +7,8 @@ import { DocumentConnections } from "./DocumentConnections";
 
 vi.mock("@/entities/connection", () => ({ attachConnection: vi.fn(), createConnection: vi.fn(), detachConnection: vi.fn(), listConnections: vi.fn() }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
+const changes = vi.hoisted(() => ({ receive: undefined as undefined | ((change: { generation: string; kind: string; document: null }) => void) }));
+vi.mock("@/entities/document-change", () => ({ listenDocumentChanges: async (receive: typeof changes.receive) => { changes.receive = receive; return () => { changes.receive = undefined; }; } }));
 let graph: ConnectionSnapshot;
 const content = (id: string) => `---\npermalink: ${id}\n---\n# 문서`;
 const props = (id: string) => ({ path: `/fixture/${id}.md`, baseline: content(id), content: content(id), workspace: null, disabled: false, onOpen: vi.fn() });
@@ -19,6 +21,18 @@ beforeEach(() => {
   vi.mocked(detachConnection).mockImplementation(async (connectionId, permalink) => { graph.memberships = graph.memberships.filter((edge) => !(edge.connectionId === connectionId && edge.permalink === permalink)); return structuredClone(graph); });
 });
 afterEach(cleanup);
+it("reloads the graph only for a connection event in the current generation", async () => {
+  const workspace = { path: "/fixture", generation: "current", documents: [], truncated: false };
+  render(<DocumentConnections {...props("a")} workspace={workspace} />);
+  await waitFor(() => expect(listConnections).toHaveBeenCalledTimes(1));
+  await act(async () => changes.receive?.({ generation: "old", kind: "connectionsChanged", document: null }));
+  expect(listConnections).toHaveBeenCalledTimes(1);
+  graph.entities.push({ id: "fresh", name: "새 연결" });
+  await act(async () => changes.receive?.({ generation: "current", kind: "connectionsChanged", document: null }));
+  expect(await screen.findByRole("button", { name: "새 연결" })).toBeTruthy();
+  expect(listConnections).toHaveBeenCalledTimes(2);
+});
+
 it("creates an independent entity without a saved document or an implicit membership", async () => {
   render(<DocumentConnections {...props("a")} path={null} />);
   await userEvent.click(screen.getByText("연결 관리", { exact: true }));

@@ -35,6 +35,7 @@ export function HomePage() {
     busy,
     error,
     notice,
+    externalNotice,
     pending,
     workspace: folder,
     refreshing,
@@ -254,7 +255,7 @@ export function HomePage() {
         {reading && (document.path && commentKey ? <DocumentComments key={commentKey} documentKey={commentKey} /> : <aside className="document-comments"><p>댓글을 남기려면 먼저 문서를 저장해주세요.</p></aside>)}
         </div>
         <footer className="document-status" role="status">
-          <span>{dirty ? "저장하지 않은 변경사항" : notice}</span>
+          <span>{externalNotice ?? (dirty ? "저장하지 않은 변경사항" : notice)}</span>
           <span>
             {document.content.length.toLocaleString()}자 ·{" "}
             {isDesktop() ? "로컬 Markdown" : "브라우저 미리보기"}
