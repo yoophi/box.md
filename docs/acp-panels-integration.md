@@ -83,3 +83,9 @@ Box 연동 기반 gh-46의 완료 근거다. 실제 native 앱 공존/설치된 
 | 7. 통합 검증 | `tests/browser/acp-panels.spec.ts` 2개가 production HTTP/WS host와 ACP permission fixture에서 통과했다. 실제 macOS 앱에서는 로컬 fixture `http://127.0.0.1:50344/one`의 child WebView와 채팅을 함께 표시하고, 설정 modal이 remote view 위에 가려지지 않는 것을 확인했다. 세션 종료 후 `codex-acp`/`npx codex-acp` 잔류 process가 없었다. | 충족 |
 
 브라우저 검증은 DOM identity, 문서 undo, 채팅 draft, pointer/keyboard resize, collapse/restore, 좁은 viewport, 실제 HTTP/WS ACP lifecycle을 담당한다. native 검증은 Chromium adapter로 대체할 수 없는 macOS child WebView bounds와 modal 보호, 설치된 Codex의 실제 streaming, 앱 내 상태 보존을 담당한다. 두 범위를 합쳐 gh-17 기준 1~7을 모두 확인했다.
+
+## gh-17 완료 판정
+
+부모 기능의 의존 작업 `gh-3`, `gh-44`, `gh-45`, `gh-46`, `gh-47`이 모두 `closed`인 것을 td에서 확인했다. 공유 component 계약과 AW 확장, Box facade와 화면 연동, 실제 HTTP ACP 채팅, native runtime 감사가 각각 완료됐으며 위 표에서 기준 1~7에 대응하는 직접 근거를 확인했다.
+
+따라서 최우측 ACP 패널 기능은 현재 source와 vendor pin에서 완료로 판정한다. 이후 문서 MCP 주입(`gh-20`)과 사이트 브라우저 전체 감사(`gh-4`)는 이 패널의 완료 조건과 분리된 상위 기능으로 계속 추적한다.
