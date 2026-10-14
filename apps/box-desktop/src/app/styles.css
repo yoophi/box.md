@@ -775,22 +775,30 @@ kbd {
 .comment-error { color: #8d4e39; font-size: 11px; overflow-wrap: anywhere; }
 @media (max-width: 850px) { .reading-layout { grid-template-columns: minmax(0, 1fr); overflow: auto; } .reading-layout .editor-surface { min-height: 300px; } .document-comments { border-top: 1px solid #d8ddcf; border-left: 0; overflow: visible; } }
 
-.document-cards { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; padding: 32px; }
+.document-cards { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; padding: 28px 32px 32px; }
 .cards-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .cards-header h1 { font-family: Georgia, "AppleMyungjo", serif; font-size: 32px; color: #254333; font-weight: 500; margin: 10px 0; }
 .cards-header p { font-size: 11px; color: #8c9284; }
-.cards-controls { display: flex; gap: 12px; margin: 24px 0; }
+.cards-controls { display: flex; align-items: center; gap: 12px; margin: 20px 0 16px; }
 .cards-controls input { flex: 1; max-width: 400px; border: 1px solid #c0cbb3; background: #faf9f2; border-radius: 4px; padding: 10px 12px; color: #344a3d; font-size: 12px; }
-.cards-controls button, .cards-pagination button { border: 1px solid #c0cbb3; background: #eeeee4; color: #637259; border-radius: 4px; padding: 8px 12px; font-size: 11px; }
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; align-items: start; }
-.cards-grid article { min-width: 0; }
-.cards-grid article > button { width: 100%; text-align: left; padding: 24px; border: 1px solid #d1d7c5; border-radius: 5px; background: #f6f5ed; color: #344a3d; box-shadow: 0 3px 12px #263e3105; transition: border-color .15s, transform .15s; }
-.cards-grid article > button:hover { border-color: #9aaf89; transform: translateY(-2px); }
+.cards-controls button { border: 1px solid #c0cbb3; background: #eeeee4; color: #637259; border-radius: 4px; padding: 8px 12px; font-size: 11px; }
+.canvas-zoom { display: flex; align-items: center; gap: 4px; margin-left: auto; padding: 3px; border: 1px solid #d1d7c5; border-radius: 6px; background: #f6f5ed; }
+.canvas-zoom button { min-width: 32px; padding: 6px 9px; border-color: transparent; background: transparent; }
+.canvas-zoom button:hover { border-color: #c0cbb3; background: #eeeee4; }
+.canvas-zoom output { min-width: 42px; text-align: center; color: #596958; font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.cards-canvas { --canvas-x: 0px; --canvas-y: 0px; --canvas-grid: 28px; position: relative; flex: 1; min-height: 320px; overflow: hidden; touch-action: none; cursor: grab; border: 1px solid #cbd2c2; border-radius: 7px; background-color: #edeee5; background-image: radial-gradient(circle, #aeb9a3 1px, transparent 1.25px); background-position: var(--canvas-x) var(--canvas-y); background-size: var(--canvas-grid) var(--canvas-grid); box-shadow: inset 0 1px 10px #314a3b0b; }
+.cards-canvas[data-panning="true"] { cursor: grabbing; }
+.cards-world { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+.document-card { position: absolute; left: 0; top: 0; width: 250px; min-width: 0; transform-origin: 0 0; cursor: grab; user-select: none; touch-action: none; }
+.document-card:active { cursor: grabbing; z-index: 2; }
+.document-card > button { width: 100%; min-height: 188px; text-align: left; padding: 22px; border: 1px solid #cbd2c2; border-radius: 6px; background: #f8f6ec; color: #344a3d; box-shadow: 0 8px 26px #263e3112, 0 1px 1px #fff inset; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.document-card > button:hover { border-color: #8ea47f; box-shadow: 0 12px 30px #263e311b, 0 1px 1px #fff inset; transform: translateY(-2px); }
 .card-mark { color: #9b7b37; font-size: 22px; }
-.cards-grid h2 { font-family: Georgia, "AppleMyungjo", serif; font-size: 18px; font-weight: 500; margin: 20px 0 12px; overflow-wrap: anywhere; }
+.document-card h2 { font-family: Georgia, "AppleMyungjo", serif; font-size: 18px; font-weight: 500; margin: 20px 0 12px; overflow-wrap: anywhere; }
 .card-summary { font-size: 12px; color: #77816d; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; min-height: 18px; }
-.cards-grid small { display: block; margin-top: 24px; color: #9aa18f; font-size: 9px; overflow-wrap: anywhere; }
-.cards-pagination { display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: auto; padding-top: 24px; font-size: 10px; color: #8c9284; }
+.document-card small { display: block; margin-top: 24px; color: #9aa18f; font-size: 9px; overflow-wrap: anywhere; }
+.cards-empty { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%); }
+.canvas-hint { position: absolute; right: 14px; bottom: 12px; margin: 0; padding: 6px 9px; border: 1px solid #d1d7c5; border-radius: 4px; background: #f8f6ece8; color: #7f8878; font-size: 9px; pointer-events: none; }
 
 .agent-chat-sheet { position: fixed; inset: 22px 22px 22px auto; width: min(410px, calc(100vw - 44px)); z-index: 20; display:flex; flex-direction:column; min-height:0; color:#223a34; background:#f7f5ec; border:1px solid #c9ccbd; box-shadow:0 12px 48px #223a342b; border-radius:10px; overflow:hidden; }
 .agent-chat-sheet[hidden] { display:none; }

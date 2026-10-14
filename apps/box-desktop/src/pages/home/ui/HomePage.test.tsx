@@ -592,6 +592,30 @@ describe("document workspace flows", () => {
     expect(await screen.findByRole("heading", { name: "note.md" })).toBeTruthy();
     expect(screen.queryByRole("region", { name: "문서 카드" })).toBeNull();
   });
+  it("pans, zooms and drags cards in world coordinates without opening after a drag", async () => {
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: "문서 카드 보기" }));
+    const canvas = screen.getByRole("region", { name: "무한 문서 캔버스" });
+    const world = canvas.querySelector<HTMLElement>(".cards-world")!;
+    expect(world.style.transform).toBe("translate(48px, 42px) scale(1)");
+
+    fireEvent.pointerDown(canvas, { pointerId: 1, button: 0, clientX: 10, clientY: 20 });
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 40, clientY: 35 });
+    fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 40, clientY: 35 });
+    expect(world.style.transform).toBe("translate(78px, 57px) scale(1)");
+
+    await user.click(screen.getByRole("button", { name: "확대" }));
+    expect(screen.getByRole("status", { name: "확대율" }).textContent).toBe("115%");
+
+    const open = screen.getByRole("button", { name: "note.md 문서 열기" });
+    const card = open.closest<HTMLElement>(".document-card")!;
+    fireEvent.pointerDown(card, { pointerId: 2, button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(canvas, { pointerId: 2, clientX: 146, clientY: 123 });
+    fireEvent.pointerUp(canvas, { pointerId: 2, clientX: 146, clientY: 123 });
+    expect(card.style.transform).toContain("translate(40px, 20px)");
+    fireEvent.click(open);
+    expect(screen.getByRole("region", { name: "문서 카드" })).toBeTruthy();
+  });
   it("saves a one-line summary in front matter and reloads it without changing the body", async () => {
     native.content = "---\npermalink: fixed\ncustom: {enabled: true}\n---\n# 원문\n\n본문 보존\n";
     const user = userEvent.setup(); const view = render(<HomePage />);
