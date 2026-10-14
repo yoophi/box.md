@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import type { ConnectionSnapshot, WorkspaceDocument, SiteBrowserSnapshot, SiteBrowserBounds } from "@box/contracts";
+import type { ConnectionSnapshot, WorkspaceDocument, SiteBrowserSnapshot, SiteBrowserBounds, SiteSelection } from "@box/contracts";
 interface NativeFixture {
   pickedFolder: string | null;
   invalidRoots: string[];
@@ -16,6 +16,8 @@ interface NativeFixture {
   failSite: boolean;
   siteOpenDelay: number;
   siteHideDelay: number;
+  siteSelection: SiteSelection;
+  failSiteSelection: boolean;
   selectedRoot: string | null;
   generation: number;
   failCreation: boolean;
@@ -61,6 +63,7 @@ export async function seedWorkspace(
         failConnections: false,
         site: { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false },
         siteCalls: [], siteBounds: null, failSite: false, siteOpenDelay: 0, siteHideDelay: 0,
+        siteSelection: { url: "https://example.com/article", title: "검증 사이트", text: "선택한 원문" }, failSiteSelection: false,
         selectedRoot: null, generation: 0, failCreation: false, loseCreateResponse: false, creationCalls: [],
       };
       window.__BOX_BROWSER_FIXTURE__ = state;
@@ -109,6 +112,10 @@ export async function seedWorkspace(
           if (command.startsWith("site_browser_")) {
             state.siteCalls.push({ command, args: structuredClone(args) });
             if (state.failSite) throw new Error("사이트 상태를 확인하지 못했습니다.");
+            if (command === "site_browser_selection") {
+              if (state.failSiteSelection) throw { code: "selectionEmpty", message: "사이트에서 저장할 텍스트를 선택해주세요." };
+              return structuredClone(state.siteSelection);
+            }
             if (command === "site_browser_open") {
               const input = String(args.url), url = new URL(input.includes("://") ? input : `https://${input}`);
               if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("HTTP 또는 HTTPS 사이트 주소를 입력해주세요.");

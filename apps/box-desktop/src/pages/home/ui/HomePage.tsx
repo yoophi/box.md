@@ -6,7 +6,7 @@ import { LinkDocument } from "@/features/link-document";
 import { permalinkFromLink } from "@/entities/document";
 import { DocumentProperties } from "@/features/document-properties";
 import { DocumentConnections } from "@/features/document-connections";
-import { SiteBrowser, useSiteBrowser } from "@/features/site-browser";
+import { SiteBrowser, siteScrapContent, useSiteBrowser } from "@/features/site-browser";
 import { useEffect, useRef, useState } from "react";
 import { DocumentHistory } from "@/features/document-history";
 import { Button, CollapsibleResizablePanels, type CollapsibleResizablePanelsHandle } from "@box/ui";
@@ -188,7 +188,7 @@ export function HomePage() {
         catch { setLinkError("유효하지 않은 문서 링크입니다."); }
       }}>
         {showCards && folder ? <>
-          {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={workspace.dismissError}>닫기</button></div>}
+          {error && !showBrowser && <div className="error-banner" role="alert"><span>{error}</span><button onClick={workspace.dismissError}>닫기</button></div>}
           <DocumentCards workspace={folder} disabled={busy} onClose={() => setShowCards(false)} />
         </> : <>
         <header className="document-header">
@@ -234,7 +234,7 @@ export function HomePage() {
             </Button>
           </div>
         </header>
-        {error && (
+        {error && !showBrowser && (
           <div className="error-banner" role="alert">
             <span>{error}</span>
             <button onClick={workspace.dismissError}>닫기</button>
@@ -263,7 +263,13 @@ export function HomePage() {
         </footer>
         </>}
       </section>
-      <SiteBrowser controller={browser.controller} state={browser.state} visible={showBrowser} blocked={blocked} onClose={() => setShowBrowser(false)} />
+      <SiteBrowser controller={browser.controller} state={browser.state} visible={showBrowser} blocked={blocked} documentBusy={busy} documentError={showBrowser ? error : null} onDismissDocumentError={workspace.dismissError} onScrap={(selection, capturedAt, complete) => {
+        workspace.request({
+          type: "create-content",
+          content: siteScrapContent(selection, capturedAt),
+          onCreated: () => { complete(); setShowBrowser(false); },
+        });
+      }} onClose={() => setShowBrowser(false)} />
             </>),
           }}
           rightPanel={{

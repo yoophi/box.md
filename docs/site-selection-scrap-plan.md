@@ -108,3 +108,13 @@ captured_at: "2026-10-14T14:00:00.000Z"
 macOS adapter는 현재 child `WKWebView`에서 하나의 JavaScript 표현식으로 URL·제목·선택 텍스트를 함께 읽는다. `TextEncoder`로 큰 선택을 IPC 전달 전에 거부하고, callback의 JSON 문자열을 Rust DTO로 해석한 뒤 domain 검증을 적용한다. JavaScript 오류와 잘못된 결과, 선택 없음, 큰 선택, 긴 제목, 5초 timeout을 구분한다. 다른 플랫폼은 `unsupported`를 반환한다.
 
 Rust 검증은 domain 6개, site service 1개, command 신뢰·capability 2개, native parsing·timeout 2개를 개별 실행했고 모두 통과했다. 이어서 `cargo fmt --all -- --check`, production `cargo check -p box-desktop`, 전체 native library 103개 통과와 1개 worker fixture ignore를 확인했다. 실제 DOM selection callback과 remote child의 실제 invoke 거부는 현재 source로 빌드하는 gh-94 감사에서 다시 확인한다.
+
+## 문서 생성 UI 구현 결과 (gh-93)
+
+공용 계약에 `SiteSelection`을 추가하고 entity API가 native 결과의 URL·제목·본문 shape를 확인한다. 순수 formatter는 JSON 호환 YAML scalar로 `title`, `summary`, `source`, `source_title`, `captured_at`을 만들며 permalink는 넣지 않는다. 선택 원문 안의 가장 긴 backtick run보다 긴 `text` fence를 사용하고 제목의 Markdown/HTML 구분 문자를 escape한다. 한줄 summary는 공백을 합친 뒤 Unicode code point 160개로 제한한다.
+
+사이트 toolbar는 페이지가 열려 있고 loading·layout·문서 작업이 없을 때 `선택 영역 스크랩`을 제공한다. 캡처 진행 중에는 버튼을 잠그고 selection 오류와 문서 생성 오류를 현재 사이트 footer에 표시한다. 같은 URL·제목·본문을 다시 캡처하면 최초 `captured_at`을 유지하므로 workspace creation attempt가 같은 content와 request ID로 재시도한다. 성공 callback에서만 retry cache를 비우고 사이트 화면을 닫는다.
+
+workspace action은 선택을 먼저 받은 뒤 기존 dirty 대화상자에 저장·버리기·취소를 적용한다. 취소와 저장 실패는 생성 service를 호출하지 않는다. 생성은 기존 generation과 `create_document`만 사용하며 성공하면 읽기 모드를 해제하고 생성 결과를 열어 sidebar를 갱신한다. 다른 이름으로 저장 경로나 페이지 제공 파일명은 없다.
+
+formatter 3개, HomePage 44개가 통과했다. Playwright에서는 새 스크랩 3개를 포함한 사이트·문서 생성·설정 23개가 통과했다. 성공 검증은 unsafe 제목/HTML 형태와 Unicode·여러 줄·긴 backtick을 ID 파일과 metadata/fence에서 확인했고, dirty 취소 후 무생성·버리기와 원본 유지, 응답 유실 후 동일 request ID와 파일 한 개를 확인했다. 최초 전체 55개 실행에서 숨겨진 사이트 footer가 기존 오류 locator를 중복시키는 회귀를 발견해 열린 사이트에서만 workspace 오류를 전달하도록 고쳤고 관련 23개를 다시 통과시켰다.

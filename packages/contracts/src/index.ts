@@ -61,3 +61,8 @@ export interface SiteBrowserSnapshot {
   canGoBack: boolean | null;
   canGoForward: boolean | null;
 }
+export interface SiteSelection {
+  url: string;
+  title: string;
+  text: string;
+}

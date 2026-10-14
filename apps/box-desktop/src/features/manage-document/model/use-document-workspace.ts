@@ -33,7 +33,8 @@ type Action =
   | "directory"
   | "read"
   | "edit"
-  | { type: "open-path" | "workspace" | "permalink"; path: string };
+  | { type: "open-path" | "workspace" | "permalink"; path: string }
+  | { type: "create-content"; content: string; onCreated: () => void };
 const WORKSPACE_KEY = "box.md.workspace-path";
 function storedWorkspacePath(): string | null {
   try {
@@ -91,7 +92,8 @@ export function useDocumentWorkspace() {
     };
   }, []);
   const creationAttempt = useRef<{
-    kind: "create" | "duplicate";
+    kind: "create" | "duplicate" | "content";
+    content: string;
     document: DocumentState;
     root: WorkspaceSnapshot;
     requestId: string;
@@ -302,12 +304,18 @@ export function useDocumentWorkspace() {
       workspaceRef.current?.generation === root?.generation
     );
   }
-  async function createOrDuplicate(kind: "create" | "duplicate") {
+  async function createOrDuplicate(
+    kind: "create" | "duplicate" | "content",
+    suppliedContent?: string,
+  ) {
     const current = docRef.current,
       root = workspaceRef.current;
     if (!root?.generation)
       throw new Error("먼저 설정에서 작업 디렉터리를 선택해주세요.");
     let relative = "";
+    const content = kind === "content" ? suppliedContent : current.content;
+    if (content === undefined)
+      throw new Error("새 문서 내용을 확인하지 못했습니다.");
     if (kind === "duplicate") {
       const prefix = `${root.path.replace(/\\/g, "/").replace(/\/+$/, "")}/`;
       const path = current.path?.replace(/\\/g, "/");
@@ -319,6 +327,7 @@ export function useDocumentWorkspace() {
     if (
       !attempt ||
       attempt.kind !== kind ||
+      attempt.content !== content ||
       attempt.root.path !== root.path ||
       attempt.root.generation !== root.generation ||
       attempt.document.key !== current.key ||
@@ -328,6 +337,7 @@ export function useDocumentWorkspace() {
     ) {
       attempt = {
         kind,
+        content,
         document: current,
         root,
         requestId: crypto.randomUUID(),
@@ -336,11 +346,11 @@ export function useDocumentWorkspace() {
     }
     try {
       const saved =
-        kind === "create"
+        kind !== "duplicate"
           ? await createDocument(
               root.generation,
               attempt.requestId,
-              current.content,
+              content,
             )
           : await duplicateFile(
               root.generation,
@@ -362,6 +372,8 @@ export function useDocumentWorkspace() {
           ? "파일을 만들었지만 이력을 기록하지 못했습니다."
           : kind === "duplicate"
             ? "새 파일로 복제했습니다."
+            : kind === "content"
+              ? "선택 영역을 새 문서로 저장했습니다."
             : "새 문서를 저장했습니다.",
       );
       await refreshWorkspace();
@@ -490,6 +502,11 @@ export function useDocumentWorkspace() {
       }
       if (!isDesktop()) {
         setNotice("파일 열기는 데스크톱 앱에서 사용할 수 있습니다.");
+        return;
+      }
+      if (typeof action === "object" && action.type === "create-content") {
+        if (await createOrDuplicate("content", action.content))
+          action.onCreated();
         return;
       }
       if (

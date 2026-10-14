@@ -13,11 +13,21 @@ import { act } from "@testing-library/react";
 vi.mock("@/entities/agent-chat", () => ({ createChatClient: vi.fn() }));
 
 type Created = { path: string; content: string; revision: string; permalink: string };
-const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]>, connections: { version: 1 as const, entities: [] as {id: string; name: string}[], memberships: [] as {connectionId: string; permalink: string}[] }, created: {} as Record<string, Created>, requests: {} as Record<string, Created>, createGate: null as Promise<void> | null, openGate: null as Promise<void> | null, saveGate: null as Promise<void> | null, listGate: null as Promise<void> | null, deleted: false, failSaveConflict: false, failCreate: false, loseResponse: false, rejectIdentityOnce: false }));
+const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]>, connections: { version: 1 as const, entities: [] as {id: string; name: string}[], memberships: [] as {connectionId: string; permalink: string}[] }, site: { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false } as { open: boolean; visible: boolean; url: string | null; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean }, siteSelection: null as {url: string; title: string; text: string} | null, siteSelectionError: null as unknown, siteSelectionGate: null as Promise<void> | null, created: {} as Record<string, Created>, requests: {} as Record<string, Created>, createGate: null as Promise<void> | null, openGate: null as Promise<void> | null, saveGate: null as Promise<void> | null, listGate: null as Promise<void> | null, deleted: false, failSaveConflict: false, failCreate: false, loseResponse: false, rejectIdentityOnce: false }));
 const eventBus = vi.hoisted(() => ({ listeners: new Map<string, Set<(event: { payload: unknown }) => void>>() }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, args: Record<string, unknown>) => {
-  if (command.startsWith("site_browser_")) return { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false };
+  if (command === "site_browser_selection") {
+    if (native.siteSelectionGate) await native.siteSelectionGate;
+    if (native.siteSelectionError) throw native.siteSelectionError;
+    if (!native.siteSelection) throw { code: "selectionEmpty", message: "사이트에서 저장할 텍스트를 선택해주세요." };
+    return structuredClone(native.siteSelection);
+  }
+  if (command.startsWith("site_browser_")) {
+    if (command === "site_browser_open") native.site = { ...native.site, open: true, visible: false, url: String(args.url), title: "검증 사이트", loading: false };
+    if (command === "site_browser_layout") native.site.visible = native.site.open && Boolean(args.bounds);
+    return structuredClone(native.site);
+  }
   if (command === "get_document_mcp_grant") return {grantId:`grant:${args.runId}`,generation:args.generation,runId:args.runId,server:{type:"http",name:"box-documents",url:"http://127.0.0.1:43210/mcp",headers:[{name:"Authorization",value:`Bearer ${"d".repeat(64)}`} ]}};
   if (command === "revoke_document_mcp_grant") return null;
   if (command === "list_connections") return structuredClone(native.connections);
@@ -109,6 +119,8 @@ beforeEach(() => {
   native.revision = 1; native.versions = []; native.path = "/workspace/note.md"; native.urls = null; native.targetContent = null; native.comments = {};
   native.folder = null; native.brokenRoots = []; native.selectionFailures = []; native.selectedRoot = null; native.workspaceWarnings = [];
   native.connections = { version: 1, entities: [], memberships: [] };
+  native.site = { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false };
+  native.siteSelection = null; native.siteSelectionError = null; native.siteSelectionGate = null;
   native.created = {}; native.requests = {}; native.createGate = null; native.openGate = null; native.saveGate = null; native.listGate = null; native.deleted = false; native.failSaveConflict = false; native.failCreate = false; native.loseResponse = false;
   native.rejectIdentityOnce = false; eventBus.listeners.clear();
   vi.mocked(save).mockClear(); vi.mocked(invoke).mockClear();
@@ -122,6 +134,108 @@ describe("document workspace flows", () => {
       await Promise.resolve();
     });
   }
+
+  async function openScrapBrowser(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByRole("button", { name: /note.md/ });
+    await user.click(screen.getByRole("button", { name: /사이트 브라우저/ }));
+    const region = document.querySelector<HTMLElement>(".site-browser-content")!;
+    vi.spyOn(region, "getBoundingClientRect").mockReturnValue(new DOMRect(230, 156, 700, 500));
+    fireEvent(window, new Event("resize"));
+    const address = screen.getByRole("textbox", { name: "사이트 주소" });
+    await user.type(address, "https://example.com/article");
+    await user.click(screen.getByRole("button", { name: "이동" }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "선택 영역 스크랩" }) as HTMLButtonElement).disabled).toBe(false));
+  }
+
+  it("creates and opens an ID document from an inert site selection", async () => {
+    native.siteSelection = {
+      url: "https://example.com/article?q=1",
+      title: '페이지 <script> "제목"',
+      text: "첫 줄 🌱\n둘째 줄\n```` raw <b>text</b>",
+    };
+    const user = userEvent.setup(); render(<HomePage />);
+    await openScrapBrowser(user);
+    await user.click(screen.getByRole("button", { name: "선택 영역 스크랩" }));
+    await screen.findByRole("heading", { name: "261013174600-00000000.md" });
+    expect(screen.getByText("선택 영역을 새 문서로 저장했습니다.")).toBeTruthy();
+    const created = Object.values(native.created);
+    expect(created).toHaveLength(1);
+    expect(created[0].path).toBe("/workspace/261013174600-00000000.md");
+    expect(documentProperty(created[0].content, "permalink")).toBe("261013174600-00000000");
+    expect(documentProperty(created[0].content, "title")).toBe('페이지 <script> "제목"');
+    expect(documentProperty(created[0].content, "summary")).toBe("첫 줄 🌱 둘째 줄 ```` raw <b>text</b>");
+    expect(documentProperty(created[0].content, "source")).toBe("https://example.com/article?q=1");
+    expect(documentProperty(created[0].content, "source_title")).toBe('페이지 <script> "제목"');
+    expect(documentProperty(created[0].content, "captured_at")).toMatch(/^2026-|^202[0-9]-/);
+    expect(created[0].content).toContain("`````text\n첫 줄 🌱\n둘째 줄\n```` raw <b>text</b>\n`````\n");
+    expect(screen.getByRole("button", { name: "읽기 모드로 전환" })).toBeTruthy();
+  });
+
+  it("shows a native selection error without creating a document", async () => {
+    native.siteSelectionError = { code: "selectionEmpty", message: "사이트에서 저장할 텍스트를 선택해주세요." };
+    const user = userEvent.setup(); render(<HomePage />);
+    await openScrapBrowser(user);
+    await user.click(screen.getByRole("button", { name: "선택 영역 스크랩" }));
+    expect(await screen.findByText("사이트에서 저장할 텍스트를 선택해주세요.")).toBeTruthy();
+    expect(Object.values(native.created)).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "스크랩 다시 시도" })).toBeTruthy();
+  });
+
+  it("shows capture progress and prevents a duplicate selection request", async () => {
+    let release!: () => void;
+    native.siteSelection = { url: "https://example.com/article", title: "스크랩", text: "선택 원문" };
+    native.siteSelectionGate = new Promise<void>((resolve) => { release = resolve; });
+    const user = userEvent.setup(); render(<HomePage />);
+    await openScrapBrowser(user);
+    await user.click(screen.getByRole("button", { name: "선택 영역 스크랩" }));
+    const progress = screen.getByRole("button", { name: "선택 확인 중…" }) as HTMLButtonElement;
+    expect(progress.disabled).toBe(true);
+    await user.click(progress);
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "site_browser_selection")).toHaveLength(1);
+    await act(async () => { release(); await native.siteSelectionGate; });
+    await screen.findByRole("heading", { name: "261013174600-00000000.md" });
+  });
+
+  it.each(["cancel", "discard", "save"] as const)("protects a dirty document before site scraping: %s", async (choice) => {
+    const original = native.content;
+    native.siteSelection = { url: "https://example.com/article", title: "스크랩", text: "선택 원문" };
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.click(screen.getByRole("button", { name: "Markdown 원문" }));
+    const source = screen.getByRole("textbox", { name: "Markdown 원문" }) as HTMLTextAreaElement;
+    const draft = `${source.value}\n저장 전 초안`;
+    fireEvent.change(source, { target: { value: draft } });
+    await openScrapBrowser(user);
+    await user.click(screen.getByRole("button", { name: "선택 영역 스크랩" }));
+    expect(screen.getByRole("dialog", { name: "변경사항을 저장할까요?" })).toBeTruthy();
+    const label = { cancel: "취소", discard: "변경 버리고 계속", save: "저장 후 계속" }[choice];
+    await user.click(screen.getByRole("button", { name: label }));
+    if (choice === "cancel") {
+      expect(Object.values(native.created)).toHaveLength(0);
+      expect(source.value).toBe(draft);
+      expect(screen.getByRole("region", { name: "사이트 브라우저 화면" })).toBeTruthy();
+    } else {
+      await screen.findByRole("heading", { name: "261013174600-00000000.md" });
+      expect(Object.values(native.created)).toHaveLength(1);
+      if (choice === "save") expect(native.content).toContain("저장 전 초안");
+      else expect(native.content).toBe(original);
+    }
+  });
+
+  it("reuses the site scrap request after a lost response", async () => {
+    native.siteSelection = { url: "https://example.com/article", title: "스크랩", text: "동일 선택" };
+    native.loseResponse = true;
+    const user = userEvent.setup(); render(<HomePage />);
+    await openScrapBrowser(user);
+    await user.click(screen.getByRole("button", { name: "선택 영역 스크랩" }));
+    await screen.findByText("response lost");
+    await user.click(screen.getByRole("button", { name: "선택 영역 스크랩" }));
+    await screen.findByRole("heading", { name: "261013174600-00000000.md" });
+    const calls = vi.mocked(invoke).mock.calls.filter(([command]) => command === "create_document");
+    expect(calls).toHaveLength(2);
+    expect((calls[0][1] as Record<string, unknown>).requestId).toBe((calls[1][1] as Record<string, unknown>).requestId);
+    expect(Object.values(native.created)).toHaveLength(1);
+  });
 
   it("applies an external MCP change to a clean document and uses its new revision on save", async () => {
     const user = userEvent.setup();

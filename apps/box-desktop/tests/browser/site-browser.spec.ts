@@ -34,6 +34,72 @@ test("normalizes addresses, follows engine history and fits native bounds below 
   expect(calls.filter((call) => call.command === "site_browser_action").map((call) => call.args.action)).toEqual(["back", "forward", "reload"]);
 });
 
+test("stores a selected region as one inert permalink document and opens it", async ({ page }) => {
+  await seedWorkspace(page, 1); await page.goto("/"); await openBrowser(page); await visit(page, "https://example.com/article");
+  await page.evaluate(() => {
+    window.__BOX_BROWSER_FIXTURE__.siteSelection = {
+      url: "https://example.com/article?q=1",
+      title: '페이지 <script> "제목"',
+      text: "첫 줄 🌱\n둘째 줄\n```` raw <img src=x onerror=window.siteAttack=1>",
+    };
+  });
+  await panel(page).getByRole("button", { name: "선택 영역 스크랩" }).click();
+  await expect(page.locator(".document-header h1")).toHaveText("261013174600-00000000.md");
+  await expect(page.getByText("선택 영역을 새 문서로 저장했습니다.", { exact: true })).toBeVisible();
+  const state = await page.evaluate(() => ({
+    calls: window.__BOX_BROWSER_FIXTURE__.creationCalls,
+    writes: window.__BOX_BROWSER_FIXTURE__.writes,
+    attack: "siteAttack" in window,
+  }));
+  expect(state.calls.map((call) => call.command)).toEqual(["create_document"]);
+  expect(state.writes).toHaveLength(1);
+  expect(state.writes[0].path).toBe("/fixture/261013174600-00000000.md");
+  expect(state.writes[0].content).toContain('permalink: "261013174600-00000000"');
+  expect(state.writes[0].content).toContain('title: "페이지 <script> \\"제목\\""');
+  expect(state.writes[0].content).toContain('summary: "첫 줄 🌱 둘째 줄 ```` raw <img src=x onerror=window.siteAttack=1>"');
+  expect(state.writes[0].content).toContain('source: "https://example.com/article?q=1"');
+  expect(state.writes[0].content).toMatch(/captured_at: "\d{4}-\d\d-\d\dT/);
+  expect(state.writes[0].content).toContain("`````text\n첫 줄 🌱\n둘째 줄\n```` raw <img src=x onerror=window.siteAttack=1>\n`````\n");
+  expect(state.attack).toBe(false);
+});
+
+test("captures before dirty protection and cancel never creates a file", async ({ page }) => {
+  await seedWorkspace(page, 1, { contents: { "/fixture/note-001.md": document } });
+  await page.goto("/"); await page.locator(".document-list button").first().click();
+  await page.getByRole("button", { name: "Markdown 원문", exact: true }).click();
+  const source = page.getByRole("textbox", { name: "Markdown 원문", exact: true });
+  const original = await source.inputValue(); await source.fill(`${original}\n미저장 초안`);
+  await openBrowser(page); await visit(page, "https://example.com/article");
+  await page.evaluate(() => { window.__BOX_BROWSER_FIXTURE__.siteSelection = { url: "https://example.com/article", title: "스크랩", text: "선택 원문" }; });
+  await panel(page).getByRole("button", { name: "선택 영역 스크랩" }).click();
+  await expect(page.getByRole("dialog", { name: "변경사항을 저장할까요?" })).toBeVisible();
+  expect(await page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.siteCalls.some((call) => call.command === "site_browser_selection"))).toBe(true);
+  await page.getByRole("button", { name: "취소", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.site.visible)).toBe(true);
+  expect(await page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.writes)).toEqual([]);
+  await panel(page).getByRole("button", { name: "선택 영역 스크랩" }).click();
+  await page.getByRole("button", { name: "변경 버리고 계속", exact: true }).click();
+  await expect(page.locator(".document-header h1")).toHaveText("261013174600-00000000.md");
+  const final = await page.evaluate(() => ({ writes: window.__BOX_BROWSER_FIXTURE__.writes, original: window.__BOX_BROWSER_FIXTURE__.content.get("/fixture/note-001.md") }));
+  expect(final.writes).toHaveLength(1);
+  expect(final.original).toBe(document);
+});
+
+test("retries a lost scrap response with the same request and one file", async ({ page }) => {
+  await seedWorkspace(page, 1); await page.goto("/"); await openBrowser(page); await visit(page, "https://example.com/article");
+  await page.evaluate(() => {
+    window.__BOX_BROWSER_FIXTURE__.siteSelection = { url: "https://example.com/article", title: "스크랩", text: "동일 선택" };
+    window.__BOX_BROWSER_FIXTURE__.loseCreateResponse = true;
+  });
+  await panel(page).getByRole("button", { name: "선택 영역 스크랩" }).click();
+  await expect(panel(page).getByText("fixture response lost", { exact: true })).toBeVisible();
+  await panel(page).getByRole("button", { name: "스크랩 다시 시도" }).click();
+  await expect(page.locator(".document-header h1")).toHaveText("261013174600-00000000.md");
+  const state = await page.evaluate(() => ({ calls: window.__BOX_BROWSER_FIXTURE__.creationCalls, writes: window.__BOX_BROWSER_FIXTURE__.writes }));
+  expect(state.calls).toHaveLength(2); expect(state.writes).toHaveLength(1);
+  expect(state.calls[0].args.requestId).toBe(state.calls[1].args.requestId);
+});
+
 test("browses document links without saving or losing the draft and editor undo history", async ({ page }) => {
   await seedWorkspace(page, 1, { contents: { "/fixture/note-001.md": document } });
   await page.goto("/"); await page.locator(".document-list button").first().click();
