@@ -21,3 +21,11 @@
 두 카드 모두 서로 다른 저장된 permalink를 가져야 연결할 수 있다. 연결 동작은 기존 gh-19 API로 두 파일 이름에서 연결 엔티티를 만든 뒤 두 permalink membership을 추가한다. 같은 이름의 엔티티가 이미 있으면 번호를 붙여 이름 충돌을 피한다. 두 문서가 이미 하나의 엔티티를 공유하면 새 엔티티를 만들지 않고 공유 연결 이름을 표시한다. 같은 permalink, permalink 누락, 저장소 로딩 실패도 쓰기 전에 차단한다.
 
 연결 snapshot의 membership을 permalink와 카드 경로에 대응시켜 같은 엔티티를 공유하는 카드 사이에 선을 그린다. 두 문서를 연결한 직후뿐 아니라 명시적 새로고침과 `connectionsChanged` 이벤트 뒤에도 저장소 snapshot을 다시 읽어 선을 복원한다. root 전환은 진행 중인 연결 결과와 이전 snapshot을 무효화한다. 카드 연결 과정은 문서 저장 API를 호출하거나 본문 wikilink를 변경하지 않는다.
+
+## 더블클릭 문서 모달과 저장 (gh-87)
+
+카드 더블클릭은 캔버스를 유지한 채 문서 모달을 연다. 모달은 기존 `open_document`로 원본과 revision을 읽고 공용 `MarkdownEditor`를 읽기 모드로 표시한다. 사용자가 편집으로 전환한 경우에만 draft를 바꿀 수 있다. 저장은 별도 카드 저장소 없이 기존 `save_document(path, content, expectedRevision)`를 호출하므로 frontmatter, 문서 이력과 revision CAS 계약을 그대로 따른다.
+
+저장 성공 뒤 새 revision과 서버가 반환한 내용을 baseline으로 삼고 카드 summary를 다시 읽는다. revision 충돌과 다른 저장 오류는 모달 안에 표시하며 draft를 유지한다. 미저장 draft가 있으면 닫기나 배경 클릭이 확인 대화상자를 열고, 사용자가 명시적으로 버리기 전까지 모달과 draft를 보존한다.
+
+각 문서 읽기와 저장에는 순번을 부여해 이전 문서의 늦은 응답을 무시한다. 모달을 연 작업 디렉터리가 바뀌면 진행 중 요청을 무효화한다. 깨끗한 모달은 닫고, 미저장 draft가 있으면 내용을 유지하면서 저장을 차단하고 변경된 root를 안내한다. 테스트는 늦은 읽기 응답, root 변경 draft 보존, 정상 CAS 저장과 이력 생성, 충돌 표시, 닫기 취소와 명시적 버리기를 검증한다.

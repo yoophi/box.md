@@ -593,14 +593,17 @@ describe("document workspace flows", () => {
     expect(native.content).toBe(original);
     expect(fixture.client.closeSession).not.toHaveBeenCalled();
   });
-  it("shows original frontmatter summaries on cards and opens their documents", async () => {
+  it("shows original frontmatter summaries and opens a card document modal", async () => {
     const user = userEvent.setup(); render(<HomePage />);
     await user.click(await screen.findByRole("button", { name: "문서 카드 보기" }));
     const cards = screen.getByRole("region", { name: "문서 카드" });
     expect(await within(cards).findByText("원래 요약")).toBeTruthy();
     await user.dblClick(within(cards).getByRole("button", { name: "note.md 카드 선택" }));
-    expect(await screen.findByRole("heading", { name: "note.md" })).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "문서 카드" })).toBeNull();
+    const dialog = await screen.findByRole("dialog", { name: "note.md" });
+    expect(within(dialog).getByText("읽기 모드")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "문서 카드" })).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "닫기" }));
+    expect(screen.queryByRole("dialog", { name: "note.md" })).toBeNull();
   });
   it("pans, zooms and drags cards in world coordinates without opening after a drag", async () => {
     const user = userEvent.setup(); render(<HomePage />);
@@ -655,6 +658,46 @@ describe("document workspace flows", () => {
     expect(native.content).toBe(original);
     expect(native.targetContent).toBe(targetOriginal);
     expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "save_document")).toHaveLength(0);
+  });
+  it("edits and saves a card modal through revision CAS and records history", async () => {
+    native.content = "---\npermalink: first\nsummary: 모달 문서\n---\n# 원문\n";
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: "문서 카드 보기" }));
+    await user.dblClick(await screen.findByRole("button", { name: "note.md 카드 선택" }));
+    const dialog = await screen.findByRole("dialog", { name: "note.md" });
+    await user.click(within(dialog).getByRole("button", { name: "편집" }));
+    await user.click(within(dialog).getByRole("button", { name: "Markdown 원문" }));
+    const source = within(dialog).getByRole("textbox", { name: "Markdown 원문" });
+    fireEvent.change(source, { target: { value: native.content + "\n모달에서 변경" } });
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
+    expect(await within(dialog).findByText("문서를 저장했습니다.")).toBeTruthy();
+    expect(native.content).toContain("모달에서 변경");
+    expect(native.versions).toHaveLength(1);
+    expect(vi.mocked(invoke).mock.calls.some(([command, args]) => command === "save_document" && (args as Record<string, unknown>).expectedRevision === "1")).toBe(true);
+    expect(within(dialog).getByText("revision 2")).toBeTruthy();
+  });
+  it("keeps a dirty card modal draft until discard and surfaces revision conflicts", async () => {
+    native.content = "---\npermalink: first\n---\n# 원문\n";
+    native.failSaveConflict = true;
+    const original = native.content;
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: "문서 카드 보기" }));
+    await user.dblClick(await screen.findByRole("button", { name: "note.md 카드 선택" }));
+    const dialog = await screen.findByRole("dialog", { name: "note.md" });
+    await user.click(within(dialog).getByRole("button", { name: "편집" }));
+    await user.click(within(dialog).getByRole("button", { name: "Markdown 원문" }));
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Markdown 원문" }), { target: { value: original + "\n미저장 초안" } });
+    await user.click(within(dialog).getByRole("button", { name: "저장" }));
+    expect(await within(dialog).findByRole("alert")).toHaveProperty("textContent", expect.stringContaining("외부 저장 충돌"));
+    expect(native.content).toBe(original);
+    await user.click(within(dialog).getByRole("button", { name: "닫기" }));
+    const confirmation = await screen.findByRole("alertdialog", { name: "변경사항을 버릴까요?" });
+    await user.click(within(confirmation).getByRole("button", { name: "계속 편집" }));
+    expect(within(dialog).getByRole("textbox", { name: "Markdown 원문" })).toHaveProperty("value", expect.stringContaining("미저장 초안"));
+    await user.click(within(dialog).getByRole("button", { name: "닫기" }));
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "변경 버리고 닫기" }));
+    expect(screen.queryByRole("dialog", { name: "note.md" })).toBeNull();
+    expect(native.content).toBe(original);
   });
   it("saves a one-line summary in front matter and reloads it without changing the body", async () => {
     native.content = "---\npermalink: fixed\ncustom: {enabled: true}\n---\n# 원문\n\n본문 보존\n";

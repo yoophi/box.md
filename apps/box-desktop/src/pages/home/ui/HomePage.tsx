@@ -189,7 +189,7 @@ export function HomePage() {
       }}>
         {showCards && folder ? <>
           {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={workspace.dismissError}>닫기</button></div>}
-          <DocumentCards workspace={folder} disabled={busy} onOpen={(path) => workspace.request({ type: "open-path", path })} onClose={() => setShowCards(false)} />
+          <DocumentCards workspace={folder} disabled={busy} onClose={() => setShowCards(false)} />
         </> : <>
         <header className="document-header">
           <div className="document-title">

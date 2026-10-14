@@ -808,6 +808,20 @@ kbd {
 .document-card small { display: block; margin-top: 24px; color: #9aa18f; font-size: 9px; overflow-wrap: anywhere; }
 .cards-empty { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%); }
 .canvas-hint { position: absolute; right: 14px; bottom: 12px; margin: 0; padding: 6px 9px; border: 1px solid #d1d7c5; border-radius: 4px; background: #f8f6ece8; color: #7f8878; font-size: 9px; pointer-events: none; }
+.card-modal-overlay { position: fixed; inset: 0; z-index: 24; display: grid; place-items: center; padding: 28px; background: #233a326b; backdrop-filter: blur(3px); }
+.card-document-modal { position: relative; display: flex; flex-direction: column; width: min(920px, calc(100vw - 56px)); height: min(760px, calc(100vh - 56px)); overflow: hidden; border: 1px solid #bdc8b5; border-radius: 9px; background: #f7f5ec; box-shadow: 0 28px 90px #15261f4d; }
+.card-document-modal > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 24px 26px 18px; border-bottom: 1px solid #d8ddcf; }
+.card-document-modal > header h2 { margin: 7px 0 5px; color: #254333; font: 500 25px/1.1 Georgia, "AppleMyungjo", serif; overflow-wrap: anywhere; }
+.card-document-modal > header small { display: block; max-width: 560px; overflow: hidden; color: #8c9284; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.card-modal-actions { display: flex; align-items: center; gap: 8px; }
+.card-document-modal > .editor-surface { flex: 1; min-height: 0; overflow: auto; padding: 22px 26px; }
+.card-document-modal > footer { display: flex; justify-content: space-between; padding: 10px 26px; border-top: 1px solid #d8ddcf; color: #7f8878; font-size: 9px; }
+.card-document-modal > .connection-error, .card-document-modal > .connection-notice { margin: 0 26px 12px; }
+.card-close-confirm { position: absolute; inset: 50% auto auto 50%; width: min(360px, calc(100% - 48px)); transform: translate(-50%, -50%); padding: 24px; border: 1px solid #b9bca8; border-radius: 7px; background: #f8f6ec; box-shadow: 0 18px 60px #1f30284d; }
+.card-close-confirm h3 { margin: 0 0 8px; color: #304b3c; font: 500 19px Georgia, "AppleMyungjo", serif; }
+.card-close-confirm p { color: #77816d; font-size: 12px; }
+.card-close-confirm > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.card-close-confirm button { border: 1px solid #bfc7b6; border-radius: 4px; padding: 8px 11px; background: #eeeee4; color: #344a3d; }
 
 .agent-chat-sheet { position: fixed; inset: 22px 22px 22px auto; width: min(410px, calc(100vw - 44px)); z-index: 20; display:flex; flex-direction:column; min-height:0; color:#223a34; background:#f7f5ec; border:1px solid #c9ccbd; box-shadow:0 12px 48px #223a342b; border-radius:10px; overflow:hidden; }
 .agent-chat-sheet[hidden] { display:none; }

@@ -15,6 +15,7 @@ import {
   type Camera,
   type Point,
 } from "../model/canvas";
+import { DocumentCardModal } from "./DocumentCardModal";
 
 type CardMetadata = { summary: string; permalink: string; error?: string };
 type Gesture =
@@ -36,8 +37,8 @@ function pointer(event: React.PointerEvent): Point {
   return { x: event.clientX, y: event.clientY };
 }
 
-export function DocumentCards({ workspace, disabled, onOpen, onClose }: {
-  workspace: WorkspaceSnapshot; disabled: boolean; onOpen: (path: string) => void; onClose: () => void;
+export function DocumentCards({ workspace, disabled, onClose }: {
+  workspace: WorkspaceSnapshot; disabled: boolean; onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [reload, setReload] = useState(0);
@@ -50,6 +51,7 @@ export function DocumentCards({ workspace, disabled, onOpen, onClose }: {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connectionNotice, setConnectionNotice] = useState("");
   const [connecting, setConnecting] = useState(false);
+  const [modalPath, setModalPath] = useState<string | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
   const suppressClick = useRef(new Set<string>());
@@ -277,7 +279,7 @@ export function DocumentCards({ workspace, disabled, onOpen, onClose }: {
               if (suppressClick.current.delete(file.path)) return;
               setConnectionNotice("");
               setSelected((current) => current.includes(file.path) ? current.filter((path) => path !== file.path) : current.length < 2 ? [...current, file.path] : [current[1]!, file.path]);
-            }} onDoubleClick={() => onOpen(file.path)}>
+            }} onDoubleClick={() => setModalPath(file.path)}>
               <span className="card-mark">▤</span><h2>{file.name}</h2>
               <p className="card-summary" title={details?.summary}>{details?.summary || (details ? "요약을 추가해보세요." : "요약을 읽는 중…")}</p>
               <small>{file.relativePath}</small>
@@ -291,5 +293,6 @@ export function DocumentCards({ workspace, disabled, onOpen, onClose }: {
     </div>
     {workspace.truncated && <p className="frontmatter-note">작업 디렉토리의 일부 문서만 표시됩니다.</p>}
     {Boolean(workspace.warnings?.length) && <p className="frontmatter-note">일부 폴더를 조회하지 못했습니다. 접근 권한을 확인해주세요.</p>}
+    {modalPath && <DocumentCardModal path={modalPath} workspace={workspace} onClose={() => setModalPath(null)} onSaved={() => setReload((value) => value + 1)} />}
   </section>;
 }
