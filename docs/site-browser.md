@@ -4,14 +4,14 @@
 
 ## 작업과 완료 조건
 
-| 작업 | 범위 | 의존성 |
-| --- | --- | --- |
-| gh-40 | native WebView·주소/영역 검증·탐색 계약·앱 명령 격리 | 없음 |
-| gh-41 | 주소·현재 제목·뒤로/앞으로/새로고침 UI, 표시 영역/숨김 동기화 | gh-40 |
-| gh-42 | 실제 macOS WebView의 탐색·렌더링·수명주기·격리 통합 검증 | gh-41 |
-| gh-43 | 실제 앱 감사용 loopback HTTP 페이지·임시 문서·실행/정리 검증 | gh-41 |
+| 작업 | 범위 | 의존성 | 상태 |
+| --- | --- | --- | --- |
+| gh-40 | native WebView·주소/영역 검증·탐색 계약·앱 명령 격리 | 없음 | 완료 |
+| gh-41 | 주소·현재 제목·뒤로/앞으로/새로고침 UI, 표시 영역/숨김 동기화 | gh-40 | 완료 |
+| gh-42 | 실제 macOS WebView의 탐색·렌더링·수명주기·격리 통합 검증 | gh-41 | 완료 |
+| gh-43 | 실제 앱 감사용 loopback HTTP 페이지·임시 문서·실행/정리 검증 | gh-41 | 완료 |
 
-gh-4는 세 작업 모두에 의존한다. gh-5의 요소 스크랩과 원문 보관은 이 브라우저를 활용하는 별도 기능이며 gh-4 완료를 전제로 진행한다. 브라우저 native 기반의 코드·단위 검증만으로 사이트 브라우징 전체를 완료 처리하지 않는다.
+gh-4는 gh-40~42에 의존한다. gh-43 fixture를 포함한 실제 앱 감사까지 완료했으며 세부 근거는 [native 감사](site-browser-native-audit.md)에 있다. gh-5의 요소 스크랩과 원문 보관은 이 브라우저를 활용하는 별도 기능이다. 브라우저 native 기반의 코드·단위 검증만으로 사이트 브라우징 전체를 완료 처리하지 않았다.
 
 ## 구현 경계
 
@@ -42,11 +42,11 @@ Tauri의 [capability 규칙](https://v2.tauri.app/security/capabilities/)은 명
 
 gh-40에서는 주소/영역 검증, 잘못된 입력의 native 호출 차단, 과거 URL의 늦은 완료 차단을 검증한다. 실제 컴파일된 앱 capability와 Tauri MockRuntime의 IPC를 사용해 main의 로컬 앱 명령 허용, remote origin 거부, child의 remote/로컬 origin 모두 거부를 확인한다. 다중 WebView 창에서도 main `Window` 조회·활성화·종료 요청 이벤트가 동작해야 한다.
 
-이 검증은 실제 외부 페이지의 macOS 렌더링/탐색·문서 초안·ACP 세션·종료 보호 화면 증거가 아니다. 해당 기준은 gh-42에 남는다. gh-41은 native 표시 영역을 주소 도구 아래로 제한하고, 창 크기·문서/브라우저 전환·모달·채팅 표시와 동기화한다. 오래 걸리는 로드와 실패한 조작에는 재시도 안내를 제공한다. native 기반만 추가한 gh-40 단계에서는 사용자 화면에 브라우징 UI가 아직 없다.
+이 검증은 실제 외부 페이지의 macOS 렌더링/탐색·문서 초안·ACP 세션·종료 보호 화면 증거가 아니어서 당시 해당 기준을 gh-42에 남겼다. gh-41은 native 표시 영역을 주소 도구 아래로 제한하고, 창 크기·문서/브라우저 전환·모달·채팅 표시와 동기화한다. 오래 걸리는 로드와 실패한 조작에는 재시도 안내를 제공한다. native 기반만 추가한 gh-40 단계에서는 사용자 화면에 브라우징 UI가 아직 없었다.
 
 gh-40의 native 단위 검증은 28개 통과, 명시적으로 실행되는 저장소 peer helper 1개 일반 제외다. 그중 새 검증 6개는 주소 정규화/거부, 잘못된 표시 영역, 과거 URL 완료, native 호출 전 검증, 컴파일된 capability의 실제 IPC 허용/거부와 다중 WebView의 main 창 접근을 확인했다. 같은 실행의 저장소 부모 검증에서 peer 프로세스 3개도 각각 통과했다. 타입·프런트엔드 빌드·Rust fmt·전체 target check가 통과했고 기존 실제 HTTP ACP 통합 1개도 통과했다(설치 에이전트 검증 3개는 이 실행에서 제외). HTTP 통합 결과를 child WebView 표시 중의 실제 native ACP 증거로 확대하지 않는다.
 
-검증 로그는 `/tmp/box-md-gh40-{native,native-check,types,build,fmt,rust,integration}.log`에 있다. 실제 앱 감사는 gh-42에 남고 상위 gh-4도 진행 중이다.
+검증 로그는 `/tmp/box-md-gh40-{native,native-check,types,build,fmt,rust,integration}.log`에 있었다. 이후 실제 앱 감사는 gh-42에서 완료했다.
 
 ## 주소·탐색 화면 (gh-41)
 
@@ -70,8 +70,16 @@ gh-40의 native 단위 검증은 28개 통과, 명시적으로 실행되는 저�
 | 느린 응답·입력/제목 안전성 | 로드 지속 시 안내/명시적 재시도, edited URL 보존·HTML 제목 요소/실행 없음 |
 | ACP 유지 | 실제 HTTP/WS ACP 2턴 이후 브라우저 전환 중 프로세스·메시지·채팅 초안·문서 초안 유지 |
 
-브라우징 Chromium 검증 8개, controller/영역 검증 11개가 추가됐다. 전체 Chromium 검증은 45개가 통과했고 사이드바 569개 문서의 760/600/480 높이 스크롤 기준도 유지했다. native 단위 검증 28개 및 실제 HTTP ACP 통합 1개가 통과했다(설치 에이전트 3개는 이 실행에서 제외). HTTP 통합과 Chromium의 사이트 IPC/문서 경계는 adapter를 사용하며 실제 macOS child 렌더링 증거를 대신하지 않는다. gh-42와 상위 gh-4는 미완료다.
+브라우징 Chromium 검증 8개, controller/영역 검증 11개가 추가됐다. 전체 Chromium 검증은 45개가 통과했고 사이드바 569개 문서의 760/600/480 높이 스크롤 기준도 유지했다. native 단위 검증 28개 및 실제 HTTP ACP 통합 1개가 통과했다(설치 에이전트 3개는 이 실행에서 제외). HTTP 통합과 Chromium의 사이트 IPC/문서 경계는 adapter를 사용하며 실제 macOS child 렌더링 증거를 대신하지 않았고, 실제 화면은 후속 gh-42에서 확인했다.
 
 최신 주소 요청은 이전의 지연된 준비를 대체하며 이전 페이지를 먼저 표시하지 않는다. 영역 부족만으로 대기 중인 주소를 버리지 않고 표시 공간이 생기면 탐색한다. controller는 표시/숨김과 명시적 닫기·모달 차단을 구분한다.
 
-gh-41의 최종 기본 검사(타입·빌드·Rust fmt·전체 target check)와 desktop 단위 50개, 공용 43개, SDK 75개, facade 16개도 통과했다. 로그는 `/tmp/box-md-gh41-{types,build,fmt,rust,native,tests,controller,browser,layout-browser,integration}.log`에 있다. 실제 native 페이지 렌더링과 UI 상호작용은 gh-42에서 확인한다.
+gh-41의 최종 기본 검사(타입·빌드·Rust fmt·전체 target check)와 desktop 단위 50개, 공용 43개, SDK 75개, facade 16개도 통과했다. 로그는 `/tmp/box-md-gh41-{types,build,fmt,rust,native,tests,controller,browser,layout-browser,integration}.log`에 있었다. 실제 native 페이지 렌더링과 UI 상호작용은 gh-42에서 확인했다.
+
+## gh-4 완료 판정
+
+gh-40은 격리 native WebView와 main/child permission 경계를, gh-41은 주소·제목·이력·새로고침·표시 영역·오류 복구 UI를 구현했다. gh-42는 실제 macOS child WebView에서 탐색, redirect, 동적 제목, popup, iframe, 느린 응답, 문서·ACP·modal·종료 보호와 외부 페이지 명령 거부를 확인했다. inline ACP 이후 변경된 배치는 현재 source native 감사로 다시 연결했다.
+
+현재 source에서 site browser와 ACP panel Playwright 10개, controller 11개, fixture Node 4개와 Chromium 7개, Desktop 112개, AW HTTP/WS integration 7개, native Rust 97개가 통과했다. typecheck, production build, Rust fmt와 workspace all-target check도 통과했다. 실제 화면과 source 계보를 포함한 상세 판정은 [gh-42 감사](site-browser-native-audit.md#2026-10-14-현재-source-최종-감사)를 따른다.
+
+따라서 앱 안에서 HTTP(S) 사이트를 탐색하고 문서·채팅 상태와 권한 경계를 유지하는 gh-4 범위는 완료됐다. URL 영역 선택과 원문 저장은 의존 작업 gh-5에서 별도로 구현한다.
