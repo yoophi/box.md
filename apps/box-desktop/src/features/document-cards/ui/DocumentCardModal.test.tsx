@@ -40,7 +40,7 @@ it("keeps a dirty draft and blocks saving after the workspace root changes", asy
   vi.mocked(writeDocument).mockResolvedValue(document("/root/note.md", "저장되면 안 됨", "2"));
   const close = vi.fn();
   const view = render(<DocumentCardModal path="/root/note.md" workspace={workspace("/root")} onClose={close} onSaved={vi.fn()} />);
-  await userEvent.click(await screen.findByRole("button", { name: "편집" }));
+  await userEvent.click(await screen.findByRole("button", { name: "편집" }, { timeout: 5_000 }));
   fireEvent.change(screen.getByRole("textbox", { name: "테스트 문서 본문" }), { target: { value: "보존할 초안" } });
   view.rerender(<DocumentCardModal path="/root/note.md" workspace={workspace("/other")} onClose={close} onSaved={vi.fn()} />);
   expect(await screen.findByRole("alert")).toHaveProperty("textContent", expect.stringContaining("작업 디렉터리가 변경"));

@@ -29,3 +29,22 @@
 저장 성공 뒤 새 revision과 서버가 반환한 내용을 baseline으로 삼고 카드 summary를 다시 읽는다. revision 충돌과 다른 저장 오류는 모달 안에 표시하며 draft를 유지한다. 미저장 draft가 있으면 닫기나 배경 클릭이 확인 대화상자를 열고, 사용자가 명시적으로 버리기 전까지 모달과 draft를 보존한다.
 
 각 문서 읽기와 저장에는 순번을 부여해 이전 문서의 늦은 응답을 무시한다. 모달을 연 작업 디렉터리가 바뀌면 진행 중 요청을 무효화한다. 깨끗한 모달은 닫고, 미저장 draft가 있으면 내용을 유지하면서 저장을 차단하고 변경된 root를 안내한다. 테스트는 늦은 읽기 응답, root 변경 draft 보존, 정상 CAS 저장과 이력 생성, 충돌 표시, 닫기 취소와 명시적 버리기를 검증한다.
+
+## 통합 감사 (gh-88)
+
+실제 React 앱을 Chromium에서 실행해 두 permalink 문서로 전체 흐름을 검증했다. 빈 캔버스 drag로 카메라가 양방향 이동하고, 115% 확대 뒤 카드 drag가 월드 좌표를 바꾸며 문서를 열거나 선택하지 않는 것을 확인했다. 실제 pointer 흐름에서 월드 레이어가 빈 공간 입력을 가로채던 문제와 drag 뒤 다음 선택을 잘못 억제하던 문제를 찾아 수정했다. 카드 pointer 활성화를 직접 추적해 한 번 누르기와 두 번 누르기, drag를 구분한다.
+
+두 카드를 선택해 연결 엔티티 한 개와 permalink membership 두 개를 생성했고 연결선 한 개가 표시됐다. 이때 문서 쓰기는 발생하지 않았다. 첫 카드를 두 번 눌러 모달을 열고 원문을 수정·저장했을 때 해당 파일 한 개만 쓰였으며 새 revision이 표시됐다. 앱을 다시 초기화한 뒤 연결 snapshot을 다시 읽어 연결선이 복원되는 것도 확인했다. 저장소의 원자성·프로세스 복원 근거는 기존 [명시적 문서 연결 감사](document-connections.md)와 [네이티브 재실행 감사](connection-native-restart-audit.md)를 함께 사용한다.
+
+| gh-65 기준 | 근거 | 판정 |
+| --- | --- | --- |
+| 무한 탐색 | 월드/카메라 분리, 빈 공간 pointer pan, wheel 양방향 pan | 충족 |
+| drag·click·double click·zoom 좌표 | 확대율 보정 drag, pointer 활성화 구분, 포인터 중심 zoom 단위/Chromium 검증 | 충족 |
+| 명시적 zoom 조작 | 축소·확대·중앙 이동과 45~180% 확대율 표시 | 충족 |
+| 두 카드 선택과 연결 | 최대 두 장 선택, UUID 엔티티·두 membership, 연결선·재조회 복원, 중복·동일 ID 보호 | 충족 |
+| 모달 조회·편집·저장 | 공용 편집기, `save_document` revision CAS, 실제 fixture 파일 쓰기와 이력 검증 | 충족 |
+| 취소·root·stale 보호 | 닫기 확인, 충돌 draft 유지, root 변경 저장 차단, 늦은 응답 무시 | 충족 |
+| 문서 ID 정책 | 저장된 permalink로 카드와 membership 식별, 누락·중복 ID 쓰기 차단 | 충족 |
+| 전체 검증 | 아래 UI·단위·타입·빌드 결과 | 충족 |
+
+검증 결과는 desktop 단위 14개 파일·112개 테스트, Chromium 52개다. Chromium 전체 실행에서 동시에 수행한 Rust/production 빌드와 자원이 경합해 먼저 실행된 ACP 패널 2개가 연결 제한 시간에 걸렸지만 나머지 50개가 통과했고, 빌드가 끝난 뒤 ACP 패널 2개를 단독 재실행해 모두 통과했다. `pnpm --filter @box/desktop check-types`와 production build도 통과했다. Chromium 캡처는 `document-card-canvas.png`라는 테스트 첨부물로 생성했다.

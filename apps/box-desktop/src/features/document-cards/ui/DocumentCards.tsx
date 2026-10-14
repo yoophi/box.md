@@ -54,7 +54,7 @@ export function DocumentCards({ workspace, disabled, onClose }: {
   const [modalPath, setModalPath] = useState<string | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
-  const suppressClick = useRef(new Set<string>());
+  const lastCardActivation = useRef<{ path: string; at: number } | null>(null);
   const connectionRequest = useRef(0);
   const connectionOperation = useRef(0);
   const filtered = useMemo(
@@ -128,7 +128,7 @@ export function DocumentCards({ workspace, disabled, onClose }: {
   };
 
   const beginPan = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || event.target !== event.currentTarget) return;
+    if (event.button !== 0 || (event.target instanceof Element && event.target.closest(".document-card"))) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     gesture.current = { kind: "pan", pointerId: event.pointerId, pointer: pointer(event), camera };
     setInteraction("pan");
@@ -149,7 +149,7 @@ export function DocumentCards({ workspace, disabled, onClose }: {
     setInteraction("card");
   };
 
-  const move = (event: React.PointerEvent<HTMLDivElement>) => {
+  const move = (event: React.PointerEvent<HTMLElement>) => {
     const active = gesture.current;
     if (!active || active.pointerId !== event.pointerId) return;
     const delta = { x: event.clientX - active.pointer.x, y: event.clientY - active.pointer.y };
@@ -162,10 +162,25 @@ export function DocumentCards({ workspace, disabled, onClose }: {
     setPositions((current) => ({ ...current, [active.path]: moveCard(active.position, delta, camera.scale) }));
   };
 
-  const endGesture = (event: React.PointerEvent<HTMLDivElement>) => {
+  const toggleSelection = (path: string) => {
+    setConnectionNotice("");
+    setSelected((current) => current.includes(path) ? current.filter((item) => item !== path) : current.length < 2 ? [...current, path] : [current[1]!, path]);
+  };
+
+  const endGesture = (event: React.PointerEvent<HTMLElement>) => {
     const active = gesture.current;
     if (!active || active.pointerId !== event.pointerId) return;
-    if (active.kind === "card" && active.moved) suppressClick.current.add(active.path);
+    if (active.kind === "card" && !active.moved) {
+      const now = Date.now();
+      const doubleClick = lastCardActivation.current?.path === active.path && now - lastCardActivation.current.at < 400;
+      toggleSelection(active.path);
+      if (doubleClick) {
+        lastCardActivation.current = null;
+        setModalPath(active.path);
+      } else {
+        lastCardActivation.current = { path: active.path, at: now };
+      }
+    }
     gesture.current = null;
     setInteraction("idle");
   };
@@ -274,12 +289,13 @@ export function DocumentCards({ workspace, disabled, onClose }: {
             data-selected={selected.includes(file.path) || undefined}
             style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
             onPointerDown={(event) => beginCardDrag(event, file)}
+            onPointerMove={move}
+            onPointerUp={endGesture}
+            onPointerCancel={endGesture}
           >
-            <button disabled={disabled} aria-label={`${file.name} 카드 선택`} aria-pressed={selected.includes(file.path)} onClick={() => {
-              if (suppressClick.current.delete(file.path)) return;
-              setConnectionNotice("");
-              setSelected((current) => current.includes(file.path) ? current.filter((path) => path !== file.path) : current.length < 2 ? [...current, file.path] : [current[1]!, file.path]);
-            }} onDoubleClick={() => setModalPath(file.path)}>
+            <button disabled={disabled} aria-label={`${file.name} 카드 선택`} aria-pressed={selected.includes(file.path)} onClick={(event) => {
+              if (event.detail === 0) toggleSelection(file.path);
+            }}>
               <span className="card-mark">▤</span><h2>{file.name}</h2>
               <p className="card-summary" title={details?.summary}>{details?.summary || (details ? "요약을 추가해보세요." : "요약을 읽는 중…")}</p>
               <small>{file.relativePath}</small>

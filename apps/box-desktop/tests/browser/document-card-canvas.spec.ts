@@ -1,0 +1,74 @@
+import { expect, test } from "@playwright/test";
+import { seedWorkspace } from "./native-fixture";
+
+const first = "---\npermalink: first\nsummary: 첫 카드 요약\n---\n# 첫 문서\n\n첫 본문";
+const second = "---\npermalink: second\nsummary: 둘째 카드 요약\n---\n# 둘째 문서\n\n둘째 본문";
+
+test("pans, zooms, connects cards and edits a document through the persisted canvas", async ({ page }, testInfo) => {
+  await seedWorkspace(page, 2, {
+    contents: { "/fixture/note-001.md": first, "/fixture/note-002.md": second },
+    persistConnections: true,
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "문서 카드 보기" }).click();
+  const canvas = page.getByRole("region", { name: "무한 문서 캔버스" });
+  const world = canvas.locator(".cards-world");
+  const cards = canvas.locator(".document-card");
+  await expect(cards).toHaveCount(2);
+  await expect(page.getByText("첫 카드 요약", { exact: true })).toBeVisible();
+  await expect(world).toHaveCSS("transform", /matrix\(1, 0, 0, 1, 48, 42\)/);
+
+  const canvasBox = (await canvas.boundingBox())!;
+  await page.mouse.move(canvasBox.x + canvasBox.width - 40, canvasBox.y + canvasBox.height - 45);
+  await page.mouse.down();
+  await page.mouse.move(canvasBox.x + canvasBox.width - 95, canvasBox.y + canvasBox.height - 80);
+  await page.mouse.up();
+  await expect(world).not.toHaveCSS("transform", /matrix\(1, 0, 0, 1, 48, 42\)/);
+
+  await page.getByRole("button", { name: "확대", exact: true }).click();
+  await expect(page.getByRole("status", { name: "확대율" })).toHaveText("115%");
+  const firstCard = cards.first();
+  const beforeDrag = await firstCard.getAttribute("style");
+  const cardBox = (await firstCard.boundingBox())!;
+  await page.mouse.move(cardBox.x + 200, cardBox.y + 70);
+  await page.mouse.down();
+  await page.mouse.move(cardBox.x + 246, cardBox.y + 93);
+  await page.mouse.up();
+  await expect.poll(() => firstCard.getAttribute("style")).not.toBe(beforeDrag);
+  await expect(page.getByRole("dialog", { name: "note-001.md" })).toHaveCount(0);
+
+  const firstButton = page.getByRole("button", { name: "note-001.md 카드 선택" });
+  const secondButton = page.getByRole("button", { name: "note-002.md 카드 선택" });
+  await firstButton.click(); await secondButton.click();
+  await expect(firstButton).toHaveAttribute("aria-pressed", "true");
+  await expect(secondButton).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "선택한 두 문서 연결" }).click();
+  await expect(page.getByText("두 문서를 연결했습니다.", { exact: true })).toBeVisible();
+  await expect(canvas.locator(".card-connection-line")).toHaveCount(1);
+  const connectionState = await page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.connections);
+  expect(connectionState.entities).toHaveLength(1);
+  expect(connectionState.memberships.map((edge) => edge.permalink).sort()).toEqual(["first", "second"]);
+
+  await firstButton.dblclick();
+  const modal = page.getByRole("dialog", { name: "note-001.md" });
+  await expect(modal).toBeVisible();
+  await modal.getByRole("button", { name: "편집", exact: true }).click();
+  await modal.getByRole("button", { name: "Markdown 원문", exact: true }).click();
+  const source = modal.getByRole("textbox", { name: "Markdown 원문", exact: true });
+  await source.fill(`${first}\n\n캔버스 모달 저장`);
+  await modal.getByRole("button", { name: "저장", exact: true }).click();
+  await expect(modal.getByText("문서를 저장했습니다.", { exact: true })).toBeVisible();
+  const fileState = await page.evaluate(() => ({
+    content: window.__BOX_BROWSER_FIXTURE__.content.get("/fixture/note-001.md"),
+    writes: window.__BOX_BROWSER_FIXTURE__.writes,
+  }));
+  expect(fileState.content).toContain("캔버스 모달 저장");
+  expect(fileState.writes).toHaveLength(1);
+  expect(fileState.writes[0].path).toBe("/fixture/note-001.md");
+  await modal.getByRole("button", { name: "닫기", exact: true }).click();
+
+  await page.reload();
+  await page.getByRole("button", { name: "문서 카드 보기" }).click();
+  await expect(page.getByRole("region", { name: "무한 문서 캔버스" }).locator(".card-connection-line")).toHaveCount(1);
+  await testInfo.attach("document-card-canvas.png", { body: await page.screenshot(), contentType: "image/png" });
+});

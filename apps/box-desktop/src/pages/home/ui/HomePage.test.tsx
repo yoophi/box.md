@@ -626,7 +626,7 @@ describe("document workspace flows", () => {
     fireEvent.pointerMove(canvas, { pointerId: 2, clientX: 146, clientY: 123 });
     fireEvent.pointerUp(canvas, { pointerId: 2, clientX: 146, clientY: 123 });
     expect(card.style.transform).toContain("translate(40px, 20px)");
-    fireEvent.click(open);
+    expect(open.getAttribute("aria-pressed")).toBe("false");
     expect(screen.getByRole("region", { name: "문서 카드" })).toBeTruthy();
   });
   it("selects two identified cards and persists an explicit connection without changing their files", async () => {
