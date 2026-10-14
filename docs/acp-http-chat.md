@@ -89,3 +89,11 @@ cargo test --manifest-path vendor/agentic-workspace/Cargo.toml -p workbench-core
 - 채팅 전후 임시 Markdown의 SHA-256은 `c19390761b85dd677ab0241d2cea3bd210402687552fc51253e88202886c4cfe`로 동일했다. 사용자의 기존 작업 디렉터리와 앱 프로필은 사용하지 않았다.
 
 이 화면 검증으로 idle 생성, 두 턴 대화, 명시적 종료, 문서 독립성, 실제 설치 에이전트 및 공유 버전 고정까지 gh-25의 남은 근거를 충족한다. permission, cancel, EOF와 다른 클라이언트 run 유지 조건은 위의 HTTP/WS 및 owner 테스트가 실제 ACP 프로세스 경로로 검증한다.
+
+| gh-25 수용 기준 | 완료 근거 |
+| --- | --- |
+| idle session/new, 두 턴 streaming | 실제 Codex 화면의 `대화 가능` 전환과 `READY`·`SECOND`; HomePage 및 `idle_session_http` |
+| permission, cancel, EOF | HomePage 권한 승인과 `idle_session_http`의 권한·초기화 취소·EOF 시나리오 |
+| 앱 종료 시 다른 client run 유지 | `owner_after_desktop`의 scripted/실제 ACP 2개 시나리오 |
+| AW와 box.md 검사 | AW 105+5+2 테스트와 box.md 설치 agent/HomePage 통합 4개 테스트 |
+| 실제 화면 및 고정 commit | 격리 macOS Tauri 검증, AW `c3aafbe`, box.md submodule pin |
