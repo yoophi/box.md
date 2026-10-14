@@ -39,3 +39,9 @@
 관련 문서: [도구](document-mcp-tools.md), [본문 링크](document-mcp-links.md), [독립 연결 및 gh-70 감사](document-mcp-connections.md), [도구 계획](document-mcp-tool-plan.md), [부모 계획](document-mcp-implementation-plan.md), [mutation 수명](document-mutation-lifecycle.md), [AW 호스트](../vendor/agentic-workspace/docs/local-mcp-server.md).
 
 검증 source: [Box 실제 HTTP](../apps/box-desktop/src-tauri/src/inbound/document_mcp/tests.rs), [출력 독립 validator](../scripts/test-document-mcp.mjs), [schema](../apps/box-desktop/src-tauri/src/inbound/document_mcp/schemas.rs), [공유 application](../apps/box-desktop/src-tauri/src/application/document_mutation_tests.rs), [AW 실제 HTTP](../vendor/agentic-workspace/crates/local-mcp-server/tests/http.rs).
+
+## gh-51 부모 완료 판정
+
+2026-10-14에 실제 td 상태에서 gh-69, gh-70, gh-71의 종료와 gh-51 기준을 대조했다. 구현은 `c439b1a`(문서 도구), `bf61bad`(본문 링크), `1f90224`(독립 연결), `6d62f02`(본문/연결 전체 감사), `e0caf48`(전체 HTTP 감사)로 단위별 커밋·push했다. 위 기준표 및 마지막 전체 실행 결과가 gh-51의 도구·schema·관계·HTTP 통합 범위를 충족한다. 이 부모 판정은 문서만 추가하며 재실행 없이 같은 소스·실행 결과를 사용한다.
+
+gh-51 범위의 미완료 항목은 없다. 다음 gh-52에서는 이 handler를 앱의 native host/grant와 AW ACP 세션에 연결하고 main UI 변경 반영·미저장 보호를 구현한다. gh-20 전체 기능과 gh-53 실제 설치 agent/native 수용 기준을 완료로 판정하지 않는다.
