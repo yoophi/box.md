@@ -49,7 +49,14 @@ if(path === '/ipc') document.querySelector('#check-ipc').addEventListener('click
     const info=await fetch('/fixture-info').then(r=>r.json());
     const internals=window.__TAURI_INTERNALS__;
     const invoke=typeof internals?.invoke==='function'?internals.invoke.bind(internals):null;
-    for(const [command,args] of [['get_app_info',{}],['open_document',{path:info.sourceDocumentPath}],['list_workspace_documents',{path:info.workspacePath}],['get_workbench_connection',{}]]) {
+    for(const [command,args] of [
+      ['get_app_info',{}],
+      ['open_document',{path:info.sourceDocumentPath}],
+      ['list_workspace_documents',{path:info.workspacePath}],
+      ['get_workbench_connection',{}],
+      ['get_document_mcp_grant',{generation:'external-child',runId:'external-child'}],
+      ['revoke_document_mcp_grant',{grantId:'external-child'}],
+    ]) {
       let status='missing-bridge';
       if(typeof invoke==='function') {
         try { await invoke(command,args);status='unexpected-allow'; }

@@ -37,7 +37,7 @@ test("fixture creates real popup/frame/history cases without confusing their par
 
 test("absence of a native bridge is reported as unverified, never as denied",async({page})=>{
   await page.goto(fixture.baseUrl+"/ipc");await page.getByRole("button",{name:"접근 거부 확인"}).click();
-  await expect(page.locator('#ipc-results li[data-status="missing-bridge"]')).toHaveCount(4);
+  await expect(page.locator('#ipc-results li[data-status="missing-bridge"]')).toHaveCount(6);
   await expect(page.locator('#ipc-results li[data-status="denied"]')).toHaveCount(0);
 });
 
@@ -56,7 +56,7 @@ for(const mode of ["denied","allowed","other-error","filesystem-denied"]) {
     },mode);
     await page.goto(fixture.baseUrl+"/ipc");await page.getByRole("button",{name:"접근 거부 확인"}).click();
     const status={denied:"denied",allowed:"unexpected-allow","other-error":"inconclusive-error","filesystem-denied":"inconclusive-error"}[mode];
-    await expect(page.locator(`#ipc-results li[data-status="${status}"]`)).toHaveCount(4);
+    await expect(page.locator(`#ipc-results li[data-status="${status}"]`)).toHaveCount(6);
     expect(await page.locator("body").innerText()).not.toContain("fixture-secret-never-display");
     expect(await page.locator("body").innerText()).not.toContain("fixture-private-response");
     expect(messages.join("\n")).not.toContain("fixture-secret-never-display");
