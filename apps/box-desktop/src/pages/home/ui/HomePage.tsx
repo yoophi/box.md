@@ -1,4 +1,4 @@
-import { AgentChatSheet, useAgentChat } from "@/features/agent-chat";
+import { AgentChatSheet, DocumentChatTools, useAgentChat } from "@/features/agent-chat";
 import { WorkspaceSettings } from "@/features/workspace-settings";
 import { DocumentCards } from "@/features/document-cards";
 import { DocumentComments } from "@/features/document-comments";
@@ -269,7 +269,7 @@ export function HomePage() {
             id: "box-agent-chat", title: "채팅 패널", keepMounted: true,
             defaultSize: "360px", minSize: "220px", maxSize: "60%",
             contentClassName: "workspace-panel-content workspace-chat",
-            content: <AgentChatSheet model={chat} open={showChat} variant="inline" workspace={folder?.path} blocked={blocked} onHide={() => panels.current?.collapse("right")} />,
+            content: <><DocumentChatTools model={chat} open={showChat} blocked={blocked} /><AgentChatSheet model={chat} open={showChat} variant="inline" workspace={folder?.path} blocked={blocked} onHide={() => panels.current?.collapse("right")} /></>,
           }}
         />
       </div>

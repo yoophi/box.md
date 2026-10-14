@@ -27,6 +27,8 @@ test.afterEach(async ({ page }) => {
 async function width(page: Page) { return page.getByTestId("box-agent-chat").evaluate((el) => el.getBoundingClientRect().width); }
 async function startChat(page: Page) {
   await page.getByRole("button", { name: "에이전트 채팅", exact: true }).click();
+  // These pane tests exercise general chat; document MCP wire coverage belongs to gh-81.
+  await page.getByRole("checkbox", { name: "새 채팅에서 문서 도구 사용" }).uncheck();
   const start = page.getByRole("button", { name: "새 세션", exact: true });
   await expect(start).toBeEnabled({ timeout: 15_000 }); await start.click();
   const composer = page.getByRole("textbox", { name: "채팅 메시지", exact: true });
