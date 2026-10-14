@@ -1,6 +1,6 @@
 # 문서 MCP 구현 계획 (gh-20)
 
-2026-10-13 기준 구현 계약과 작업 순서다. gh-49의 [공용 HTTP 호스트 기반](document-mcp-host-integration.md)과 gh-50의 작업 루트 문서 서비스 기반은 구현했다. gh-56(`0b65ada`)과 gh-57(`fe03369`)은 검토를 거쳐 완료했으며 [서비스 수용 기준 감사](scoped-document-service-acceptance-audit.md)에 실제 파일·기존 command·공통 fixture 및 기본 검사 근거가 있다. gh-69는 [문서 도구 10개](document-mcp-tools.md)의 handler/schema와 실제 HTTP 검증을 구현했다. 본문 링크·독립 연결 gh-70은 gh-73/gh-74와 [추가 기준 감사](document-mcp-connections.md)로 구현·검증했다. 전체 HTTP 감사 gh-71은 [수용 기준 감사](document-mcp-http-acceptance-audit.md)에서 도구·인증·파일 범위와 기본 검사를 대조했다. native grant·ACP·UI 연동 gh-52는 [통합 감사](document-mcp-native-acp-ui-audit.md)까지 구현했으며 실제 설치 agent/native 최종 검증 gh-53이 남아 있다. 부모 gh-20의 수용 기준 1~9와 기존 gh-3 의존성을 유지한다. 공식 규격·버전 근거는 [프로토콜 조사](document-mcp-protocol-research.md)를 따른다.
+2026-10-14 기준 구현 계약과 작업 순서다. gh-49의 [공용 HTTP 호스트 기반](document-mcp-host-integration.md)과 gh-50의 작업 루트 문서 서비스 기반은 구현했다. gh-56(`0b65ada`)과 gh-57(`fe03369`)은 검토를 거쳐 완료했으며 [서비스 수용 기준 감사](scoped-document-service-acceptance-audit.md)에 실제 파일·기존 command·공통 fixture 및 기본 검사 근거가 있다. gh-69는 [문서 도구 10개](document-mcp-tools.md)의 handler/schema와 실제 HTTP 검증을 구현했다. 본문 링크·독립 연결 gh-70은 gh-73/gh-74와 [추가 기준 감사](document-mcp-connections.md)로 구현·검증했다. 전체 HTTP 감사 gh-71은 [수용 기준 감사](document-mcp-http-acceptance-audit.md)에서 도구·인증·파일 범위와 기본 검사를 대조했다. native grant·ACP·UI 연동 gh-52는 [통합 감사](document-mcp-native-acp-ui-audit.md)까지 구현했고 gh-53은 [실제 설치 agent·native 감사](document-mcp-native-agent-audit.md)에서 완료했다. 부모 gh-20의 수용 기준 1~9와 기존 gh-3 의존성을 유지한다. 공식 규격·버전 근거는 [프로토콜 조사](document-mcp-protocol-research.md)를 따른다.
 
 최신 사용자 요구는 **gh-64**에 등록했다. 아래 최초 설계의 UUID 생성·다른 이름 저장 문구는 새 요구로 대체한다. 새 문서와 복제는 로컬 생성일 `yyMMddHHmmss`와 CSPRNG hex 8자를 `-`로 연결한 새 permalink를 사용하고 `{permalink}.md`로 생성한다. 다른 이름 저장을 제거하며 복제 title은 `기존 title 사본`이다. gh-64는 gh-56에 의존하고 gh-51의 선행 작업이다. 충돌 UI도 다른 이름 저장 대신 이 정책에 맞춰야 한다. 현행 application 통합 판정은 [gh-56 감사](scoped-document-integration-audit.md), gh-50 전체 판정은 gh-57에서 확인한다.
 
@@ -105,7 +105,7 @@ AW [ACP runner](../vendor/agentic-workspace/crates/acp-agent-core/src/infrastruc
 | 3 (gh-50) | scoped 문서 service·permalink·lossless metadata·CAS·복구 삭제 | gh-49 | 1, 2, 4, 6 |
 | 4 (gh-51) | MCP 도구 handler/schema·본문 링크/명시적 연결 구분·실제 HTTP 읽기/쓰기 | gh-50, 완료된 gh-18/gh-36/gh-39 | 1, 2, 5, 6, 7, 8 |
 | 5 (gh-52) | native host/grant·AW ACP 주입·UI 갱신/dirty 보호·오류 복구 | gh-51, 완료된 gh-23/gh-32 | 3, 4, 5, 6 |
-| 6 (gh-53) | 실제 설치 에이전트의 ACP 도구 사용·native 전수 감사 | gh-52, gh-3, gh-19 | 1~9 완료 판정 |
+| 6 (gh-53, 완료) | 실제 설치 에이전트의 ACP 도구 사용·native 전수 감사 | gh-52, gh-3, gh-19 | 1~9 완료 판정 |
 
 부모의 gh-3/gh-7 선행 관계는 유지한다. 독립 기반 작업은 기존 완료된 공유 HTTP client를 선행으로 삼아 진행하지만 실제 ACP 완료 게이트를 제거하지 않는다.
 

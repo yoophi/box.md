@@ -1,6 +1,6 @@
 # native MCP·ACP·UI 통합 감사 (gh-78)
 
-2026-10-14 기준으로 gh-52의 native host/grant, AW HTTP ACP 주입, main UI 변경 반영을 한 흐름으로 대조했다. 실제 설치 agent와 배포 native 앱의 최종 검증은 gh-53에 남긴다.
+2026-10-14 기준으로 gh-52의 native host/grant, AW HTTP ACP 주입, main UI 변경 반영을 한 흐름으로 대조했다. 이후 gh-53의 [실제 설치 agent·native 감사](document-mcp-native-agent-audit.md)에서 배포 native 앱의 최종 검증을 완료했다.
 
 ## 통합 경로
 
@@ -44,6 +44,6 @@ sequenceDiagram
 
 ## 범위
 
-이번 감사는 공유 AW 서버·실제 ACP subprocess, native HTTP/IPC/Tauri mock runtime, React main 화면의 실행 경계를 결합한다. 실제 설치 agent가 HTTP MCP capability를 광고하고 배포 native 앱에서 도구를 호출하는 최종 화면 증거는 gh-53에서 확인한다. 따라서 fixture 결과를 설치 agent 검증으로 확대하지 않는다.
+이번 감사는 공유 AW 서버·실제 ACP subprocess, native HTTP/IPC/Tauri mock runtime, React main 화면의 실행 경계를 결합한다. 실제 설치 agent가 HTTP MCP capability를 광고하고 배포 native 앱에서 도구를 호출하는 최종 화면 증거는 [gh-53 감사](document-mcp-native-agent-audit.md)에서 별도로 확인했으므로 fixture 결과를 설치 agent 검증으로 확대하지 않는다.
 
 관련 문서: [native grant](document-mcp-native-grants.md), [ACP 연결 감사](document-mcp-acp-acceptance.md), [변경 event 감사](document-change-integration-audit.md), [구현 계획](document-mcp-native-integration-plan.md).
