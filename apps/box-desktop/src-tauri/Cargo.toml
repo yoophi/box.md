@@ -31,7 +31,7 @@ getrandom = "=0.4.3"
 workbench-desktop-client = { path = "../../../vendor/agentic-workspace/crates/workbench-desktop-client" }
 local-mcp-server = { path = "../../../vendor/agentic-workspace/crates/local-mcp-server" }
 pulldown-cmark = { version = "=0.13.4", default-features = false }
-tokio = { version = "1", features = ["rt"] }
+tokio = { version = "1", features = ["rt", "sync"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "WKWebView", "WKNavigation"] }

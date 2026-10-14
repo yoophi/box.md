@@ -39,6 +39,13 @@ impl ScopeAdmission {
         Ok(AdmissionPermit(self.clone()))
     }
 
+    pub(super) fn is_active(&self) -> bool {
+        self.state
+            .lock()
+            .map(|state| state.accepting)
+            .unwrap_or(false)
+    }
+
     pub(super) fn stop_accepting(&self) {
         self.state
             .lock()

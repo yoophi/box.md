@@ -257,6 +257,7 @@ pub fn run() {
         .manage(ExitGuard(AtomicBool::new(false)))
         .manage(service)
         .setup(|app| {
+            app.manage(inbound::document_mcp_runtime::DocumentMcpRuntime::new());
             app.manage(std::sync::Arc::new(
                 application::site_browser_service::SiteBrowserService::new(
                     infrastructure::native_site_browser::NativeSiteBrowser::new(
@@ -303,6 +304,8 @@ pub fn run() {
             inbound::connection_commands::attach_document_connection,
             inbound::connection_commands::detach_document_connection,
             inbound::workbench_commands::get_workbench_connection,
+            inbound::document_mcp_commands::get_document_mcp_grant,
+            inbound::document_mcp_commands::revoke_document_mcp_grant,
             inbound::comment_commands::list_document_comments,
             inbound::comment_commands::add_document_comment,
             inbound::get_app_info,
@@ -318,6 +321,7 @@ pub fn run() {
         ])
         .on_window_event(|window, event| {
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                if let Some(mcp) = window.app_handle().try_state::<inbound::document_mcp_runtime::DocumentMcpRuntime>() { mcp.retire(); }
                 if let Some(shell) = window
                     .app_handle()
                     .try_state::<infrastructure::workbench_shell::WorkbenchShell>()
@@ -330,11 +334,13 @@ pub fn run() {
         .expect("error while building box.md")
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
+                if let Some(mcp) = app.try_state::<inbound::document_mcp_runtime::DocumentMcpRuntime>() { tauri::async_runtime::block_on(mcp.stop_admission()); }
                 if let Some(documents) =
                     app.try_state::<application::document_workspace::DocumentWorkspace>()
                 {
                     documents.close_and_drain();
                 }
+                if let Some(mcp) = app.try_state::<inbound::document_mcp_runtime::DocumentMcpRuntime>() { if tauri::async_runtime::block_on(mcp.shutdown()).is_err() { eprintln!("box.md: document MCP host shutdown failed"); } }
                 if let Some(shell) =
                     app.try_state::<infrastructure::workbench_shell::WorkbenchShell>()
                 {
@@ -351,3 +357,6 @@ pub fn run() {
             }
         });
 }
+
+#[cfg(test)]
+mod document_mcp_permission_tests;

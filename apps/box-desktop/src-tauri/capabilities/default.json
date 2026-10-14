@@ -15,6 +15,8 @@
     "allow-set-exit-allowed",
     "allow-get-app-info",
     "allow-get-workbench-connection",
+    "allow-get-document-mcp-grant",
+    "allow-revoke-document-mcp-grant",
     "allow-open-document",
     "allow-save-document",
     "allow-create-document",

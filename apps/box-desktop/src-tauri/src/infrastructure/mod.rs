@@ -24,3 +24,5 @@ pub mod document_scope_factory;
 pub mod fs_connection_repository;
 pub mod native_site_browser;
 pub mod workbench_shell;
+
+pub mod random_document_grant_token;

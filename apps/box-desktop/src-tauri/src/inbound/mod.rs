@@ -13,3 +13,7 @@ pub mod comment_commands;
 pub mod connection_commands;
 pub mod site_browser_commands;
 pub mod workbench_commands;
+
+pub mod document_mcp_runtime;
+
+pub mod document_mcp_commands;

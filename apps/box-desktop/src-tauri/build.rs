@@ -4,6 +4,8 @@ fn main() {
             "set_exit_allowed",
             "get_app_info",
             "get_workbench_connection",
+            "get_document_mcp_grant",
+            "revoke_document_mcp_grant",
             "open_document",
             "save_document",
             "create_document",

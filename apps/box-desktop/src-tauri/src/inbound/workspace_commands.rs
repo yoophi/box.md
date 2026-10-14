@@ -16,10 +16,17 @@ pub fn list_workspace_documents(
 }
 
 #[tauri::command]
-pub fn select_document_workspace(
+pub fn select_document_workspace<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     path: String,
     rebind: Option<bool>,
     documents: tauri::State<'_, crate::application::document_workspace::DocumentWorkspace>,
 ) -> Result<WorkspaceSnapshot, DocumentError> {
-    documents.select(&path, rebind.unwrap_or(false))
+    let snapshot = documents.select(&path, rebind.unwrap_or(false))?;
+    if let Some(mcp) =
+        tauri::Manager::try_state::<super::document_mcp_runtime::DocumentMcpRuntime>(&app)
+    {
+        mcp.grants.prune_inactive();
+    }
+    Ok(snapshot)
 }

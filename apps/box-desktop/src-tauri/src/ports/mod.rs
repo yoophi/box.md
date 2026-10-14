@@ -13,3 +13,5 @@ pub mod comment_repository;
 pub mod connection_repository;
 pub mod document_scope_factory;
 pub mod site_browser_host;
+
+pub mod document_grant_token;

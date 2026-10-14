@@ -1,6 +1,6 @@
 # 문서 MCP native·ACP·UI 연결 계획 (gh-52)
 
-2026-10-14 기준 gh-51의 handler/실제 HTTP 구현 및 감사 근거를 재사용한다. native host/grant와 main UI 연결은 아직 구현 전이다. 기존 AW vendor `760415c`의 `local-mcp-server`, `workbench-agent-client` 및 HTTP/WS client를 사용하고 Box에서 ACP process/stdio 구현을 추가하지 않는다.
+2026-10-14 기준 gh-51의 handler/실제 HTTP 구현 및 감사 근거를 재사용한다. gh-75의 [native host/grant와 main 명령](document-mcp-native-grants.md)은 구현·검증했다. ACP 세션 주입과 main UI 변경 반영은 후속 작업이다. 기존 AW vendor `760415c`의 `local-mcp-server`, `workbench-agent-client` 및 HTTP/WS client를 사용하고 Box에서 ACP process/stdio 구현을 추가하지 않는다.
 
 ## 순차 하위 작업
 

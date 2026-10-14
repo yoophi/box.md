@@ -291,6 +291,10 @@ impl DocumentScope {
         f(&self.storage.service)
     }
 
+    pub fn is_active(&self) -> bool {
+        self.admission.is_active()
+    }
+
     /// Revocation is immediate; accepted operations retain their pinned service.
     pub fn stop_accepting(&self) {
         self.admission.stop_accepting();
