@@ -219,6 +219,25 @@ it.each(["root", "dispose"])(
   },
 );
 
+it("ignores a late native issuance failure after a generation rebind", async () => {
+  const f = setup();
+  let reject!: (cause: Error) => void;
+  vi.mocked(f.api.issue).mockImplementationOnce(
+    () =>
+      new Promise((_, failure) => {
+        reject = failure;
+      }),
+  );
+  const pending = f.controller.createSession(options, true);
+  f.controller.setGeneration("gen-two");
+  await f.controller.createSession({ ...options, runId: "new-run" }, true);
+  reject(new Error("old workspace failed"));
+  await expect(pending).rejects.toThrow("작업 디렉터리");
+  expect(f.controller.getStatus().notice).toBeNull();
+  expect(f.controller.getStatus().modes["new-run"]).toBe("enabled");
+  await f.controller.dispose();
+});
+
 it("revokes an in-flight create on generation change and ignores its late success", async () => {
   const f = setup();
   let finish!: (

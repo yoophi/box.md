@@ -94,6 +94,7 @@ export class DocumentChatSessions {
       grant = await this.api.issue(generation, runId);
     } catch {
       this.#modes.set(runId, "revoked");
+      if (this.#disposed || epoch !== this.#epoch) throw new Error(changed);
       this.#notice = unavailable;
       this.changedState();
       throw new Error(unavailable);
