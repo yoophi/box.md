@@ -35,9 +35,28 @@ test("fixture creates real popup/frame/history cases without confusing their par
   await page.goBack();await expect(page).toHaveTitle("Fixture history initial");
 });
 
+test("fixture exposes selectable rich, oversized and navigation-race content",async({page})=>{
+  await page.goto(fixture.baseUrl+"/selection");
+  await page.getByRole("button",{name:"검증 원문 선택"}).click();
+  const selected=await page.evaluate(()=>getSelection().toString());
+  expect(selected).toContain("첫 줄의 Unicode 원문 🌱");
+  expect(selected).toContain('**Markdown** 과 <script>alert("실행 금지")</script>');
+  expect(selected).toContain("````");
+
+  await page.goto(fixture.baseUrl+"/selection-large");
+  await page.getByRole("button",{name:"대용량 원문 선택"}).click();
+  expect(await page.evaluate(()=>new TextEncoder().encode(getSelection().toString()).length)).toBeGreaterThan(262144);
+
+  await page.goto(fixture.baseUrl+"/selection-race");
+  await page.getByRole("button",{name:"선택 후 주소와 제목 변경"}).click();
+  await expect(page).toHaveURL(fixture.baseUrl+"/selection-race?state=2#captured");
+  await expect(page).toHaveTitle("선택 경쟁 이후 제목 🌊");
+  expect(await page.evaluate(()=>getSelection().toString())).toBe("경쟁 상태에서도 한 번에 읽은 원문 🌊");
+});
+
 test("absence of a native bridge is reported as unverified, never as denied",async({page})=>{
   await page.goto(fixture.baseUrl+"/ipc");await page.getByRole("button",{name:"접근 거부 확인"}).click();
-  await expect(page.locator('#ipc-results li[data-status="missing-bridge"]')).toHaveCount(6);
+  await expect(page.locator('#ipc-results li[data-status="missing-bridge"]')).toHaveCount(7);
   await expect(page.locator('#ipc-results li[data-status="denied"]')).toHaveCount(0);
 });
 
@@ -56,7 +75,7 @@ for(const mode of ["denied","allowed","other-error","filesystem-denied"]) {
     },mode);
     await page.goto(fixture.baseUrl+"/ipc");await page.getByRole("button",{name:"접근 거부 확인"}).click();
     const status={denied:"denied",allowed:"unexpected-allow","other-error":"inconclusive-error","filesystem-denied":"inconclusive-error"}[mode];
-    await expect(page.locator(`#ipc-results li[data-status="${status}"]`)).toHaveCount(6);
+    await expect(page.locator(`#ipc-results li[data-status="${status}"]`)).toHaveCount(7);
     expect(await page.locator("body").innerText()).not.toContain("fixture-secret-never-display");
     expect(await page.locator("body").innerText()).not.toContain("fixture-private-response");
     expect(messages.join("\n")).not.toContain("fixture-secret-never-display");

@@ -19,7 +19,7 @@ test("serves the browsing cases and independent permalink documents over loopbac
   const two = await readFile(fixture.targetDocumentPath, "utf8");
   assert.match(one, /permalink: qa-source/);assert.match(two, /permalink: qa-target/);
   assert.ok(one.includes(`${fixture.baseUrl}/one`));
-  for(const path of ["/", "/one", "/two", "/title", "/fragment", "/popup", "/iframe", "/embedded", "/ipc"]) {
+  for(const path of ["/", "/one", "/two", "/title", "/fragment", "/popup", "/iframe", "/embedded", "/ipc", "/selection", "/selection-large", "/selection-race"]) {
     const response=await fetch(fixture.baseUrl+path);assert.equal(response.status,200);
     assert.match(response.headers.get("content-type"), /text\/html/);
     assert.ok((await response.text()).includes('<script src="/fixture.js" defer>'));

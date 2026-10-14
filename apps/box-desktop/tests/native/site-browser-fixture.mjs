@@ -21,6 +21,9 @@ const pages = {
   "/stall": ["Fixture unfinished load", `<h1>로드가 완료되지 않는 페이지</h1><p>앱에서 안내를 확인하고 다른 주소로 이동하거나 새로고침하세요.</p>`],
   "/error": ["Fixture HTTP 503", `<h1>HTTP 503</h1><p>HTTP 오류 응답도 이 페이지의 본문은 표시할 수 있습니다.</p><a href="/one">정상 페이지로 이동</a>`],
   "/ipc": ["Fixture IPC boundary", `<h1>외부 페이지의 앱 명령 접근</h1><p>결과가 모두 거부여야 합니다. 브리지가 없거나 다른 오류이면 미검증입니다.</p><button id="check-ipc">접근 거부 확인</button><ul id="ipc-results"></ul><p>허용된 경우에도 응답 값은 표시하거나 기록하지 않습니다.</p>`],
+  "/selection": ["선택 수집 제목 🌱", `<h1>선택 영역 수집</h1><button id="select-content">검증 원문 선택</button><article id="selection-content"><p>첫 줄의 Unicode 원문 🌱</p><p>둘째 줄은 **Markdown** 과 &lt;script&gt;alert("실행 금지")&lt;/script&gt; 형태다.</p><p>긴 fence: \`\`\`\` 를 그대로 보존한다.</p></article>`],
+  "/selection-large": ["선택 크기 제한", `<h1>선택 크기 제한</h1><button id="select-large">대용량 원문 선택</button><p id="selection-large-content"></p>`],
+  "/selection-race": ["선택 경쟁 이전 제목", `<h1>선택과 주소 변경</h1><button id="select-race">선택 후 주소와 제목 변경</button><p id="selection-race-content">경쟁 상태에서도 한 번에 읽은 원문 🌊</p>`],
 };
 const css = `body{margin:0;background:#f5f3eb;color:#223a34;font:16px/1.7 system-ui}main{max-width:760px;padding:36px;margin:auto}h1{font:32px Georgia,serif}a,button{color:#244f42}nav{display:grid;gap:12px}button{padding:10px 14px;background:#eae8de;border:1px solid #bcbfab;border-radius:5px}iframe{width:100%;height:240px;border:1px solid #bcbfab}dd{overflow-wrap:anywhere;margin:0 0 12px}li[data-status=unexpected-allow]{color:#9b4837}`;
 const script = `
@@ -42,6 +45,16 @@ if(path === '/fragment') {
   document.querySelector('#push-state').addEventListener('click',()=>{history.pushState({},'', '/fragment?state=2#changed');update();});window.addEventListener('popstate',update);update();
 }
 if(path === '/popup') document.querySelector('#open-popup').addEventListener('click',()=>window.open('/two?popup=script','fixture-popup'));
+const selectNode=(node)=>{const range=document.createRange();range.selectNodeContents(node);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);};
+if(path === '/selection') document.querySelector('#select-content').addEventListener('click',()=>selectNode(document.querySelector('#selection-content')));
+if(path === '/selection-large') {
+  const content=document.querySelector('#selection-large-content');content.textContent='대용량 '+ '가'.repeat(87382);
+  document.querySelector('#select-large').addEventListener('click',()=>selectNode(content));
+}
+if(path === '/selection-race') document.querySelector('#select-race').addEventListener('click',()=>{
+  selectNode(document.querySelector('#selection-race-content'));
+  history.pushState({},'', '/selection-race?state=2#captured');document.title='선택 경쟁 이후 제목 🌊';
+});
 if(path === '/ipc') document.querySelector('#check-ipc').addEventListener('click',async(event)=>{
   const button=event.currentTarget;button.disabled=true;
   const list=document.querySelector('#ipc-results');list.replaceChildren();
@@ -56,6 +69,7 @@ if(path === '/ipc') document.querySelector('#check-ipc').addEventListener('click
       ['get_workbench_connection',{}],
       ['get_document_mcp_grant',{generation:'external-child',runId:'external-child'}],
       ['revoke_document_mcp_grant',{grantId:'external-child'}],
+      ['site_browser_selection',{}],
     ]) {
       let status='missing-bridge';
       if(typeof invoke==='function') {
