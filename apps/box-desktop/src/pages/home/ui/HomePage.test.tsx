@@ -17,6 +17,8 @@ const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as str
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, args: Record<string, unknown>) => {
   if (command.startsWith("site_browser_")) return { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false };
+  if (command === "get_document_mcp_grant") return {grantId:`grant:${args.runId}`,generation:args.generation,runId:args.runId,server:{type:"http",name:"box-documents",url:"http://127.0.0.1:43210/mcp",headers:[{name:"Authorization",value:`Bearer ${"d".repeat(64)}`} ]}};
+  if (command === "revoke_document_mcp_grant") return null;
   if (command === "list_connections") return { version: 1, entities: [], memberships: [] };
   if (command === "list_workspace_documents" || command === "select_document_workspace") {
     if (native.brokenRoots.includes(String(args.path))) throw new Error("작업 디렉터리에 접근할 수 없습니다.");

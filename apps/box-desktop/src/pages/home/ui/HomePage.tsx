@@ -25,7 +25,7 @@ export function HomePage() {
   const [linkError, setLinkError] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const chat = useAgentChat(workspace.workspace?.path, showChat);
+  const chat = useAgentChat(workspace.workspace?.path, showChat, workspace.workspace?.generation ?? undefined);
   const [showCards, setShowCards] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   useEffect(() => { setShowHistory(false); setShowCards(false); }, [workspace.document.key]);
