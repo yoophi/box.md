@@ -67,3 +67,19 @@ cargo check --workspace --all-targets
 ![600×480: 독립 스크롤과 채팅 동작 버튼](assets/acp-panels-narrow.png)
 
 Box 연동 기반 gh-46의 완료 근거다. 실제 native 앱 공존/설치된 provider 응답 및 gh-17 전체 수용 기준은 gh-47과 gh-3의 native gate에서 추가 확인한다.
+
+## gh-47 최종 수용 기준 감사 (2026-10-14)
+
+현재 감사 기준의 AW vendor pin은 `c3aafbed7a173fd14113c1cb19f645ae97024a66`이다. 이 pin은 HTTP ACP adapter를 독립 process group으로 실행하고 세션 취소·종료 시 전체 process group을 정리한다. 위 gh-46 절의 `8534a7b`는 최초 패널 연동 당시의 고정 지점이며, 이번 감사는 현재 pin과 현재 Box 소스로 다시 수행했다.
+
+| gh-17 기준 | 현재 구현과 검증 근거 | 판정 |
+| --- | --- | --- |
+| 1. 최우측 패널과 중앙 작업 영역 공존 | `HomePage`가 `@box/ui`에서 재내보낸 AW `CollapsibleResizablePanels` 안에 문서/사이트 중앙 영역과 inline `AgentChatSheet`를 같은 가로 group으로 렌더링한다. 실제 격리 macOS 앱에서 문서와 채팅, 이어서 native child WebView의 `Fixture one`과 채팅을 동시에 확인했다. | 충족 |
+| 2. 명시적 접기·펴기 | sidebar의 에이전트 채팅 버튼, rail의 `채팅 패널`, 패널의 `채팅 숨기기`가 같은 shared controller를 조작한다. 실제 앱에서 응답 중 패널을 접고 rail로 다시 펼쳤다. | 충족 |
+| 3. AW 공유 component와 너비 조절 | Box에는 별도 패널 구현 복제본이 없고 `packages/ui`가 AW component와 타입을 재사용한다. Chromium에서 포인터·키보드 resize를 검증했고, 실제 macOS 앱에서 splitter를 키보드로 `58.573`에서 `40`으로 변경했다. | 충족 |
+| 4. 중앙 확장과 폭 복원 | 접으면 채팅 DOM을 유지한 채 중앙 영역이 rail까지 확장되고, 다시 펼치면 마지막 열린 splitter 값 `40`이 복원됐다. | 충족 |
+| 5. 세션·대화·진행 응답 유지 | 실제 설치된 Codex/GPT-5.6-Sol 세션에 1부터 500까지 출력하도록 요청하고 streaming 도중 패널을 접었다. 다시 펼쳤을 때 동일한 `1. codex chat` 세션이 `응답 중`이었고, 500까지 완료된 뒤 `대화 가능`으로 돌아왔다. 대화 내용과 미전송 초안 `접기 후에도 유지할 채팅 초안`도 유지됐다. | 충족 |
+| 6. 문서 내용·미저장 상태 유지 | 격리 문서에 `미저장 패널 QA 초안`을 둔 채 패널 접기·펴기, 너비 변경, 사이트 전환, 설정 modal 열기·닫기를 수행했다. `미저장 변경`과 90자 내용이 유지됐고, 임시 문자열을 추가한 뒤 `Cmd+Z`로 101자에서 90자로 복원했다. 디스크 파일 SHA-256은 실행 전후 모두 `c19390761b85dd677ab0241d2cea3bd210402687552fc51253e88202886c4cfe`였다. | 충족 |
+| 7. 통합 검증 | `tests/browser/acp-panels.spec.ts` 2개가 production HTTP/WS host와 ACP permission fixture에서 통과했다. 실제 macOS 앱에서는 로컬 fixture `http://127.0.0.1:50344/one`의 child WebView와 채팅을 함께 표시하고, 설정 modal이 remote view 위에 가려지지 않는 것을 확인했다. 세션 종료 후 `codex-acp`/`npx codex-acp` 잔류 process가 없었다. | 충족 |
+
+브라우저 검증은 DOM identity, 문서 undo, 채팅 draft, pointer/keyboard resize, collapse/restore, 좁은 viewport, 실제 HTTP/WS ACP lifecycle을 담당한다. native 검증은 Chromium adapter로 대체할 수 없는 macOS child WebView bounds와 modal 보호, 설치된 Codex의 실제 streaming, 앱 내 상태 보존을 담당한다. 두 범위를 합쳐 gh-17 기준 1~7을 모두 확인했다.
