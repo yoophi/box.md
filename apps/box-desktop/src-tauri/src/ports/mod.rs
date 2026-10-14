@@ -1,3 +1,4 @@
+pub mod document_change_sink;
 pub mod document_repository;
 pub mod workspace_repository;
 use crate::domain::AppInfo;

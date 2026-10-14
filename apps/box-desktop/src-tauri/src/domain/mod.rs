@@ -1,4 +1,5 @@
 pub mod document;
+pub mod document_change;
 pub mod scoped_document;
 pub mod wikilink;
 pub mod workspace;

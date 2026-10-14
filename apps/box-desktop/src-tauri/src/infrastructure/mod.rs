@@ -19,6 +19,7 @@ pub mod git_document_history;
 
 pub mod fs_comment_repository;
 
+pub mod document_change_emitter;
 pub mod document_identity;
 pub mod document_scope_factory;
 pub mod fs_connection_repository;

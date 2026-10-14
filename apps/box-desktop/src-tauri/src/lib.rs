@@ -5,7 +5,7 @@ mod infrastructure;
 mod ports;
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 struct ExitGuard(AtomicBool);
 
@@ -281,13 +281,16 @@ pub fn run() {
                 ),
             ));
             let history = app.path().app_data_dir()?.join("history");
+            let changes_app = app.handle().clone();
             app.manage(application::document_workspace::DocumentWorkspace::new(
                 application::document_service::DocumentService::new(
                     infrastructure::fs_document_repository::FsDocumentRepository,
                     infrastructure::git_document_history::GitDocumentHistory::new(history.clone()),
                 ),
                 infrastructure::document_scope_factory::FsDocumentScopeFactory::new(history).with_connections(app.state::<std::sync::Arc<application::connection_service::ConnectionService>>().inner().clone()),
-            ));
+            ).with_changes(move |change: domain::document_change::DocumentChange| {
+                infrastructure::document_change_emitter::emit(&changes_app, change);
+            }));
             Ok(())
         })
         .manage(application::workspace_service::WorkspaceService::new(

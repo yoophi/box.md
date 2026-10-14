@@ -17,6 +17,7 @@ struct Fixture {
     workspace: Arc<DocumentWorkspace>,
     runtime: DocumentMcpRuntime,
     client: Client,
+    changes: Arc<std::sync::Mutex<Vec<crate::domain::document_change::DocumentChange>>>,
 }
 impl Fixture {
     fn new() -> Self {
@@ -32,17 +33,26 @@ impl Fixture {
             .unwrap();
         }
         let history = tempfile::tempdir().unwrap();
-        let workspace = Arc::new(DocumentWorkspace::new(
-            DocumentService::new(
-                FsDocumentRepository,
-                GitDocumentHistory::new(history.path().into()),
-            ),
-            GatedFactory {
-                inner: FsDocumentScopeFactory::new(history.path().into()),
-                history: history.path().into(),
-                gate,
-            },
-        ));
+        let changes = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured = changes.clone();
+        let workspace = Arc::new(
+            DocumentWorkspace::new(
+                DocumentService::new(
+                    FsDocumentRepository,
+                    GitDocumentHistory::new(history.path().into()),
+                ),
+                GatedFactory {
+                inner: FsDocumentScopeFactory::new(history.path().into()).with_connections(Arc::new(
+                    crate::application::connection_service::ConnectionService::new(
+                        crate::infrastructure::fs_connection_repository::FsConnectionRepository::new(history.path().join("profile")),
+                    ),
+                )),
+                    history: history.path().into(),
+                    gate,
+                },
+            )
+            .with_changes(move |change| captured.lock().unwrap().push(change)),
+        );
         workspace
             .select(roots[0].path().to_str().unwrap(), false)
             .unwrap();
@@ -51,6 +61,7 @@ impl Fixture {
             _history: history,
             workspace,
             runtime: DocumentMcpRuntime::new(),
+            changes,
             client: Client::builder()
                 .no_proxy()
                 .timeout(std::time::Duration::from_secs(10))
@@ -69,6 +80,100 @@ impl Fixture {
         self.workspace.close_and_drain();
         self.runtime.shutdown().await.unwrap();
     }
+}
+#[tokio::test]
+async fn http_mutations_publish_once_after_history_and_never_publish_failed_or_replayed_requests() {
+    use crate::domain::document_change::DocumentChangeKind;
+    let f = Fixture::new();
+    let grant = f
+        .runtime
+        .grant(f.workspace.scope().unwrap(), "event-run")
+        .await
+        .unwrap();
+    let created = f
+        .call(
+            &grant,
+            "create_document",
+            json!({"content":"private body", "requestId":"create-event"}),
+        )
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    let document = &created["result"]["structuredContent"]["data"]["document"];
+    let path = document["path"].as_str().unwrap();
+    let revision = document["revision"].as_str().unwrap();
+    assert_eq!(f.changes.lock().unwrap().len(), 1);
+    let change = f.changes.lock().unwrap()[0].clone();
+    assert_eq!(change.generation, grant.generation);
+    assert_eq!(change.kind, DocumentChangeKind::DocumentChanged);
+    assert_eq!(change.document.as_ref().unwrap().path, path);
+    assert_eq!(change.document.as_ref().unwrap().revision, revision);
+    assert_eq!(
+        f.workspace
+            .history(f.roots[0].path().join(path).to_str().unwrap())
+            .unwrap()
+            .len(),
+        1
+    );
+    let payload = serde_json::to_string(&change).unwrap();
+    assert!(!payload.contains("private body"));
+    assert!(!payload.contains("create-event"));
+    assert!(!payload.contains(f.roots[0].path().to_str().unwrap()));
+    assert!(!payload.contains(&grant.server.headers[0].value));
+    let repeated = f
+        .call(
+            &grant,
+            "create_document",
+            json!({"content":"private body", "requestId":"create-event"}),
+        )
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(created, repeated);
+    assert_eq!(f.changes.lock().unwrap().len(), 1);
+    let conflict = f.call(&grant, "update_document", json!({"document":{"path":path}, "content":"rejected", "expectedRevision":"stale", "requestId":"conflict-event"})).await.json::<Value>().await.unwrap();
+    assert_eq!(
+        conflict["result"]["structuredContent"]["error"]["code"],
+        "conflict"
+    );
+    assert_eq!(f.changes.lock().unwrap().len(), 1);
+    let deleted = f.call(&grant, "delete_document", json!({"document":{"path":path}, "expectedRevision":revision, "requestId":"delete-event"})).await.json::<Value>().await.unwrap();
+    assert_eq!(deleted["result"]["structuredContent"]["ok"], true);
+    assert_eq!(f.changes.lock().unwrap().len(), 2);
+    assert_eq!(
+        f.changes.lock().unwrap()[1].kind,
+        DocumentChangeKind::DocumentDeleted
+    );
+    let connected = f
+        .call(
+            &grant,
+            "create_connection",
+            json!({"name":"private connection name", "requestId":"connection-event"}),
+        )
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(connected["result"]["structuredContent"]["ok"], true);
+    let change = f.changes.lock().unwrap()[2].clone();
+    assert_eq!(change.kind, DocumentChangeKind::ConnectionsChanged);
+    assert!(change.document.is_none());
+    assert!(!serde_json::to_string(&change)
+        .unwrap()
+        .contains("private connection name"));
+    f.call(
+        &grant,
+        "create_connection",
+        json!({"name":"private connection name", "requestId":"connection-event"}),
+    )
+    .await
+    .json::<Value>()
+    .await
+    .unwrap();
+    assert_eq!(f.changes.lock().unwrap().len(), 3);
+    f.stop().await;
 }
 #[tokio::test]
 async fn real_grants_retry_one_credential_revoke_only_one_run_and_follow_new_root_generations() {
@@ -357,6 +462,8 @@ async fn disconnected_granted_mutation_survives_revoke_and_root_switch_drains_be
         .unwrap()
         .unwrap();
     drop(stream);
+    // File publication is accepted, but history has not finished: no completion event yet.
+    assert!(f.changes.lock().unwrap().is_empty());
     f.runtime.grants.revoke(&grant.grant_id);
     assert_eq!(
         f.call(&grant, "list_documents", json!({})).await.status(),
@@ -388,6 +495,11 @@ async fn disconnected_granted_mutation_survives_revoke_and_root_switch_drains_be
         selected.generation.as_deref(),
         Some(grant.generation.as_str())
     );
+    let changes = f.changes.lock().unwrap();
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].generation, grant.generation);
+    assert_eq!(changes[0].document.as_ref().unwrap().path, "note.md");
+    drop(changes);
     assert_eq!(
         fs::read_to_string(f.roots[0].path().join("note.md")).unwrap(),
         content

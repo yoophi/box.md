@@ -473,6 +473,7 @@ pub struct DocumentWorkspace {
     factory: Box<dyn DocumentScopeFactory>,
     current: Mutex<Option<Arc<DocumentScope>>>,
     closed: AtomicBool,
+    changes: Arc<dyn crate::ports::document_change_sink::DocumentChangeSink>,
 }
 impl DocumentWorkspace {
     pub fn new(native: DocumentService, factory: impl DocumentScopeFactory + 'static) -> Self {
@@ -481,7 +482,15 @@ impl DocumentWorkspace {
             factory: Box::new(factory),
             current: Mutex::new(None),
             closed: AtomicBool::new(false),
+            changes: Arc::new(|_: crate::domain::document_change::DocumentChange| {}),
         }
+    }
+    pub fn with_changes(
+        mut self,
+        sink: impl crate::ports::document_change_sink::DocumentChangeSink + 'static,
+    ) -> Self {
+        self.changes = Arc::new(sink);
+        self
     }
     pub fn scope(&self) -> Result<Arc<DocumentScope>, DocumentError> {
         if self.closed.load(Ordering::Acquire) {
@@ -531,11 +540,12 @@ impl DocumentWorkspace {
         {
             return scope.native_snapshot();
         }
+        let generation = uuid::Uuid::new_v4().to_string();
         let scope = Arc::new(DocumentScope {
-            generation: uuid::Uuid::new_v4().to_string(),
+            generation: generation.clone(),
             storage: self.factory.open(path)?,
             admission: ScopeAdmission::new(),
-            mutations: MutationRegistry::new(),
+            mutations: MutationRegistry::with_changes(generation, self.changes.clone()),
         });
         let listing = scope.native_snapshot()?;
         // Keep the current-root mutex until the old generation has drained.

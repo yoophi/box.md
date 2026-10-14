@@ -1,5 +1,9 @@
 use super::{document_service::DocumentService, scope_admission::AdmissionPermit};
 use crate::domain::{document::DocumentError, scoped_document::DocumentRef};
+use crate::{
+    domain::document_change::{ChangedDocument, DocumentChange, DocumentChangeKind},
+    ports::document_change_sink::DocumentChangeSink,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -330,10 +334,18 @@ pub(super) struct MutationRegistry {
     journal: Mutex<Journal>,
     max_requests: usize,
     max_bytes: usize,
+    changes: Option<(String, Arc<dyn DocumentChangeSink>)>,
 }
 impl MutationRegistry {
     pub(super) fn new() -> Arc<Self> {
         Self::with_limits(128, 64 * 1024 * 1024)
+    }
+    pub(super) fn with_changes(generation: String, sink: Arc<dyn DocumentChangeSink>) -> Arc<Self> {
+        let mut registry = Self::new();
+        Arc::get_mut(&mut registry)
+            .expect("new registry is uniquely owned")
+            .changes = Some((generation, sink));
+        registry
     }
     pub(super) fn with_limits(max_requests: usize, max_bytes: usize) -> Arc<Self> {
         Arc::new(Self {
@@ -343,6 +355,7 @@ impl MutationRegistry {
             }),
             max_requests,
             max_bytes,
+            changes: None,
         })
     }
     pub(super) fn submit(
@@ -394,6 +407,13 @@ impl MutationRegistry {
         let response = completion.clone();
         let permit = Arc::new(permit);
         let worker_permit = permit.clone();
+        let change_kind = match &mutation {
+            DocumentMutation::CreateConnection { .. }
+            | DocumentMutation::AttachConnection { .. }
+            | DocumentMutation::DetachConnection { .. } => DocumentChangeKind::ConnectionsChanged,
+            DocumentMutation::Delete { .. } => DocumentChangeKind::DocumentDeleted,
+            _ => DocumentChangeKind::DocumentChanged,
+        };
         // The worker, journal and permit outlive the response ticket. No scope
         // reference cycle is formed; a worker owns the fixed service and gate.
         let spawn = std::thread::Builder::new()
@@ -416,6 +436,9 @@ impl MutationRegistry {
                     error
                 });
                 registry.complete(&id, &result);
+                if let Ok(value) = &result {
+                    registry.publish_change(change_kind, value);
+                }
                 response.finish(result);
             });
         if spawn.is_err() {
@@ -427,6 +450,40 @@ impl MutationRegistry {
             completion.finish(result);
         }
         Ok(MutationTicket(completion))
+    }
+    fn publish_change(&self, kind: DocumentChangeKind, value: &Value) {
+        let Some((generation, sink)) = &self.changes else {
+            return;
+        };
+        let document = if kind == DocumentChangeKind::ConnectionsChanged {
+            None
+        } else {
+            let key = if kind == DocumentChangeKind::DocumentDeleted {
+                "deleted"
+            } else {
+                "document"
+            };
+            let Some(path) = value[key]["path"].as_str() else {
+                return;
+            };
+            let Some(revision) = value[key]["revision"].as_str() else {
+                return;
+            };
+            if box_document_store::validate_relative_document_path(path).is_err() {
+                return;
+            }
+            Some(ChangedDocument {
+                path: path.into(),
+                revision: revision.into(),
+            })
+        };
+        let event = DocumentChange {
+            generation: generation.clone(),
+            kind,
+            document,
+        };
+        // A renderer/sink failure cannot undo a completed filesystem mutation or strand its ticket.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| sink.publish(event)));
     }
     fn reserve(&self, id: &str, planned: &Value) -> Result<(), DocumentError> {
         // Count the serialized response without allocating another full JSON
