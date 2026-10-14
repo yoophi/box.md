@@ -786,13 +786,22 @@ kbd {
 .canvas-zoom button { min-width: 32px; padding: 6px 9px; border-color: transparent; background: transparent; }
 .canvas-zoom button:hover { border-color: #c0cbb3; background: #eeeee4; }
 .canvas-zoom output { min-width: 42px; text-align: center; color: #596958; font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.card-connection-toolbar { display: flex; align-items: center; gap: 10px; min-height: 32px; margin: -5px 0 11px; color: #77816d; font-size: 10px; }
+.card-connection-toolbar > span { min-width: 58px; letter-spacing: .04em; }
+.card-connection-toolbar > span strong { color: #315443; font-size: 13px; }
+.card-connection-toolbar > button:not(.plain-button) { border: 1px solid #aebc9e; border-radius: 4px; padding: 7px 12px; background: #dce5d3; color: #28483a; font-size: 10px; }
+.card-connection-toolbar > button:disabled { opacity: .45; }
+.card-connection-toolbar small { color: #8d6b3f; }
 .cards-canvas { --canvas-x: 0px; --canvas-y: 0px; --canvas-grid: 28px; position: relative; flex: 1; min-height: 320px; overflow: hidden; touch-action: none; cursor: grab; border: 1px solid #cbd2c2; border-radius: 7px; background-color: #edeee5; background-image: radial-gradient(circle, #aeb9a3 1px, transparent 1.25px); background-position: var(--canvas-x) var(--canvas-y); background-size: var(--canvas-grid) var(--canvas-grid); box-shadow: inset 0 1px 10px #314a3b0b; }
 .cards-canvas[data-panning="true"] { cursor: grabbing; }
 .cards-world { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+.card-connections { position: absolute; inset: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.card-connection-line { stroke: #8a9f78; stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .document-card { position: absolute; left: 0; top: 0; width: 250px; min-width: 0; transform-origin: 0 0; cursor: grab; user-select: none; touch-action: none; }
 .document-card:active { cursor: grabbing; z-index: 2; }
 .document-card > button { width: 100%; min-height: 188px; text-align: left; padding: 22px; border: 1px solid #cbd2c2; border-radius: 6px; background: #f8f6ec; color: #344a3d; box-shadow: 0 8px 26px #263e3112, 0 1px 1px #fff inset; transition: border-color .15s, box-shadow .15s, transform .15s; }
 .document-card > button:hover { border-color: #8ea47f; box-shadow: 0 12px 30px #263e311b, 0 1px 1px #fff inset; transform: translateY(-2px); }
+.document-card[data-selected="true"] > button { border-color: #53745e; box-shadow: 0 0 0 3px #7d9d7461, 0 12px 30px #263e311b; background: #f3f4e8; }
 .card-mark { color: #9b7b37; font-size: 22px; }
 .document-card h2 { font-family: Georgia, "AppleMyungjo", serif; font-size: 18px; font-weight: 500; margin: 20px 0 12px; overflow-wrap: anywhere; }
 .card-summary { font-size: 12px; color: #77816d; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; min-height: 18px; }

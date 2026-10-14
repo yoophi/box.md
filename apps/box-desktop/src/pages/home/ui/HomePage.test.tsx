@@ -13,14 +13,23 @@ import { act } from "@testing-library/react";
 vi.mock("@/entities/agent-chat", () => ({ createChatClient: vi.fn() }));
 
 type Created = { path: string; content: string; revision: string; permalink: string };
-const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]>, created: {} as Record<string, Created>, requests: {} as Record<string, Created>, createGate: null as Promise<void> | null, openGate: null as Promise<void> | null, saveGate: null as Promise<void> | null, listGate: null as Promise<void> | null, deleted: false, failSaveConflict: false, failCreate: false, loseResponse: false, rejectIdentityOnce: false }));
+const native = vi.hoisted(() => ({ content: "", revision: 1, versions: [] as string[], path: "/workspace/note.md", folder: null as string | null, brokenRoots: [] as string[], selectionFailures: [] as string[], selectedRoot: null as string | null, workspaceWarnings: [] as {path: string | null; code: string}[], urls: null as string[] | null, targetContent: null as string | null, comments: {} as Record<string, {id: string; body: string; createdAt: string}[]>, connections: { version: 1 as const, entities: [] as {id: string; name: string}[], memberships: [] as {connectionId: string; permalink: string}[] }, created: {} as Record<string, Created>, requests: {} as Record<string, Created>, createGate: null as Promise<void> | null, openGate: null as Promise<void> | null, saveGate: null as Promise<void> | null, listGate: null as Promise<void> | null, deleted: false, failSaveConflict: false, failCreate: false, loseResponse: false, rejectIdentityOnce: false }));
 const eventBus = vi.hoisted(() => ({ listeners: new Map<string, Set<(event: { payload: unknown }) => void>>() }));
 vi.mock("@/shared/lib/runtime", () => ({ isDesktop: () => true }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(async (command: string, args: Record<string, unknown>) => {
   if (command.startsWith("site_browser_")) return { open: false, visible: false, url: null, title: "", loading: false, canGoBack: false, canGoForward: false };
   if (command === "get_document_mcp_grant") return {grantId:`grant:${args.runId}`,generation:args.generation,runId:args.runId,server:{type:"http",name:"box-documents",url:"http://127.0.0.1:43210/mcp",headers:[{name:"Authorization",value:`Bearer ${"d".repeat(64)}`} ]}};
   if (command === "revoke_document_mcp_grant") return null;
-  if (command === "list_connections") return { version: 1, entities: [], memberships: [] };
+  if (command === "list_connections") return structuredClone(native.connections);
+  if (command === "create_connection_entity") {
+    native.connections.entities.push({ id: `connection-${native.connections.entities.length + 1}`, name: String(args.name) });
+    return structuredClone(native.connections);
+  }
+  if (command === "attach_document_connection") {
+    const edge = { connectionId: String(args.connectionId), permalink: String(args.permalink) };
+    if (!native.connections.memberships.some((item) => item.connectionId === edge.connectionId && item.permalink === edge.permalink)) native.connections.memberships.push(edge);
+    return structuredClone(native.connections);
+  }
   if (command === "list_workspace_documents" || command === "select_document_workspace") {
     if (command === "list_workspace_documents" && native.listGate) await native.listGate;
     if (native.brokenRoots.includes(String(args.path))) throw new Error("작업 디렉터리에 접근할 수 없습니다.");
@@ -99,6 +108,7 @@ beforeEach(() => {
   native.content = "---\nsummary: 원래 요약\ncustom: {enabled: true}\n---\n# 문서\n\n안녕 🌱\n";
   native.revision = 1; native.versions = []; native.path = "/workspace/note.md"; native.urls = null; native.targetContent = null; native.comments = {};
   native.folder = null; native.brokenRoots = []; native.selectionFailures = []; native.selectedRoot = null; native.workspaceWarnings = [];
+  native.connections = { version: 1, entities: [], memberships: [] };
   native.created = {}; native.requests = {}; native.createGate = null; native.openGate = null; native.saveGate = null; native.listGate = null; native.deleted = false; native.failSaveConflict = false; native.failCreate = false; native.loseResponse = false;
   native.rejectIdentityOnce = false; eventBus.listeners.clear();
   vi.mocked(save).mockClear(); vi.mocked(invoke).mockClear();
@@ -588,7 +598,7 @@ describe("document workspace flows", () => {
     await user.click(await screen.findByRole("button", { name: "문서 카드 보기" }));
     const cards = screen.getByRole("region", { name: "문서 카드" });
     expect(await within(cards).findByText("원래 요약")).toBeTruthy();
-    await user.click(within(cards).getByRole("button", { name: "note.md 문서 열기" }));
+    await user.dblClick(within(cards).getByRole("button", { name: "note.md 카드 선택" }));
     expect(await screen.findByRole("heading", { name: "note.md" })).toBeTruthy();
     expect(screen.queryByRole("region", { name: "문서 카드" })).toBeNull();
   });
@@ -607,7 +617,7 @@ describe("document workspace flows", () => {
     await user.click(screen.getByRole("button", { name: "확대" }));
     expect(screen.getByRole("status", { name: "확대율" }).textContent).toBe("115%");
 
-    const open = screen.getByRole("button", { name: "note.md 문서 열기" });
+    const open = screen.getByRole("button", { name: "note.md 카드 선택" });
     const card = open.closest<HTMLElement>(".document-card")!;
     fireEvent.pointerDown(card, { pointerId: 2, button: 0, clientX: 100, clientY: 100 });
     fireEvent.pointerMove(canvas, { pointerId: 2, clientX: 146, clientY: 123 });
@@ -615,6 +625,36 @@ describe("document workspace flows", () => {
     expect(card.style.transform).toContain("translate(40px, 20px)");
     fireEvent.click(open);
     expect(screen.getByRole("region", { name: "문서 카드" })).toBeTruthy();
+  });
+  it("selects two identified cards and persists an explicit connection without changing their files", async () => {
+    native.content = "---\npermalink: first\nsummary: 첫 요약\n---\n# 첫 문서\n";
+    native.targetContent = "---\npermalink: second\nsummary: 둘째 요약\n---\n# 둘째 문서\n";
+    const original = native.content;
+    const targetOriginal = native.targetContent;
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: "문서 카드 보기" }));
+    const first = await screen.findByRole("button", { name: "note.md 카드 선택" });
+    const second = await screen.findByRole("button", { name: "target.md 카드 선택" });
+    await user.click(first); await user.click(second);
+    expect(first.getAttribute("aria-pressed")).toBe("true");
+    expect(second.getAttribute("aria-pressed")).toBe("true");
+    await user.click(screen.getByRole("button", { name: "선택한 두 문서 연결" }));
+    expect(await screen.findByText("두 문서를 연결했습니다.")).toBeTruthy();
+    expect(native.connections.entities).toEqual([{ id: "connection-1", name: "note · target" }]);
+    expect(native.connections.memberships).toEqual([
+      { connectionId: "connection-1", permalink: "first" },
+      { connectionId: "connection-1", permalink: "second" },
+    ]);
+    expect(screen.getByLabelText("문서 카드 연결").querySelectorAll(".card-connection-line")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "연결 새로고침" }));
+    await waitFor(() => expect(screen.getByLabelText("문서 카드 연결").querySelectorAll(".card-connection-line")).toHaveLength(1));
+    await user.click(first); await user.click(second);
+    expect(screen.getByText("이미 ‘note · target’ 연결을 공유합니다.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "선택한 두 문서 연결" }).hasAttribute("disabled")).toBe(true);
+    expect(native.connections.entities).toHaveLength(1);
+    expect(native.content).toBe(original);
+    expect(native.targetContent).toBe(targetOriginal);
+    expect(vi.mocked(invoke).mock.calls.filter(([command]) => command === "save_document")).toHaveLength(0);
   });
   it("saves a one-line summary in front matter and reloads it without changing the body", async () => {
     native.content = "---\npermalink: fixed\ncustom: {enabled: true}\n---\n# 원문\n\n본문 보존\n";
