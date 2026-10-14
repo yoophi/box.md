@@ -122,7 +122,7 @@ AW [ACP runner](../vendor/agentic-workspace/crates/acp-agent-core/src/infrastruc
 | gh-56 | 같은 DocumentService/UI 저장·이력 경로에 scoped 저장소/metadata 통합, permalink 조회, 목록/검색/변경, requestId dedupe와 accepted-task drain | gh-55 |
 | gh-57 | gh-50 기준별 실제 파일·기존 command/service 통합 검증과 완료 감사 | gh-56, 완료된 gh-7/gh-12/gh-13 |
 
-gh-54의 저장소 테스트는 metadata/application 구현이나 MCP/native/ACP 검증을 대신하지 않는다. gh-57의 [문서 서비스 수용 기준 감사](scoped-document-service-acceptance-audit.md)는 gh-50의 실제 파일·기존 command 및 기본 검사 근거를 정리한다. UI 이벤트·dirty 보호와 grant/session 수명은 gh-52, 실제 macOS 화면과 설치 agent의 HTTP MCP 검증은 gh-53에 남아 있다.
+gh-54의 저장소 테스트는 metadata/application 구현이나 MCP/native/ACP 검증을 대신하지 않는다. gh-57의 [문서 서비스 수용 기준 감사](scoped-document-service-acceptance-audit.md)는 gh-50의 실제 파일·기존 command 및 기본 검사 근거를 정리한다. UI 이벤트·dirty 보호와 grant/session 수명은 gh-52에서, 실제 macOS 화면과 설치 agent의 HTTP MCP 검증은 gh-53에서 완료했다.
 
 ## gh-56 서비스 통합 하위 작업
 
@@ -134,7 +134,7 @@ gh-58에서 [backend 작업 루트와 같은 DocumentService 공유](document-wo
 | 2 (gh-59) | scoped 조회·검색·permalink index·metadata·CRUD/trash/restore application | gh-58 | missing/duplicate/rename, source/body 보존, CAS·동시쓰기·복구, scan/cursor 한계와 scope 오류 |
 | 3 (gh-60) | requestId fingerprint/result dedupe, accepted mutation 소유 및 종료/루트 전환 drain | gh-59 | 재시도·다른 payload·응답 유실·용량·신규 거부·수락 작업 완료, UI와 같은 직렬화/이력 경로 |
 
-gh-56은 기존 gh-55와 마지막 하위 작업 gh-60에 의존한다. gh-50의 전체 application 완료 감사는 gh-57에 남아 있으며, MCP handler/HTTP는 gh-51, grant/ACP·UI 이벤트와 dirty 보호는 gh-52, 실제 설치 agent와 macOS 화면은 gh-53에서 검증한다. 각 하위 작업의 구현·필요 검증 후 개별 커밋과 push를 진행한다.
+gh-56은 기존 gh-55와 마지막 하위 작업 gh-60에 의존한다. gh-50의 전체 application 완료 감사는 gh-57, MCP handler/HTTP는 gh-51, grant/ACP·UI 이벤트와 dirty 보호는 gh-52, 실제 설치 agent와 macOS 화면은 gh-53에서 순서대로 검증했다. 각 하위 작업은 구현·필요 검증 후 개별 커밋과 push를 남겼다.
 
 gh-59의 [scoped 문서 application](scoped-document-application.md)은 같은 service 잠금에서 path/permalink 조회, 목록·검색/cursor, UUID 생성, metadata patch, CAS와 복구 삭제를 제공한다. 파일 목록의 불완전성을 경고하고 ID 고유성을 확인할 수 없는 쓰기는 거부한다. mutation 재시도·task 소유·drain은 gh-60에 유지한다.
 
@@ -149,3 +149,9 @@ gh-60은 gh-62([scope admission 및 루트 전환/종료 drain](document-scope-l
 ## gh-52 native·ACP·UI 순차 하위 작업
 
 2026-10-14에 gh-75(native MCP host/generation-run grant 및 main 명령) → gh-76(AW 공유 HTTP ACP 주입·credential 수명·지원 진단) → gh-77(main 변경 이벤트/clean 갱신/dirty·undo 보호) → gh-78(전체 통합 감사)로 등록했다. gh-75는 gh-51, 다음 작업은 직전 작업에 의존하고 gh-52는 최종 gh-78에 의존한다. 기존 gh-51/gh-23/gh-32 및 gh-53/부모 gh-20의 관계를 유지한다. [구현 경계와 검증 계획](document-mcp-native-integration-plan.md)을 따른다. 등록과 계획은 실제 native 연동 완료를 뜻하지 않는다.
+
+## gh-20 최종 완료 판정
+
+2026-10-14에 gh-48부터 gh-53까지의 순차 구현과 모든 세부 작업을 완료했다. [실제 설치 ACP agent·native 감사](document-mcp-native-agent-audit.md)가 부모 수용 기준 1~9를 구현 정본, 실제 HTTP, 파일 byte/revision, native UI와 설치 provider 실행에 각각 연결한다. 현재 source의 타입 검사, 전체 TS 테스트, AW HTTP/WS 통합, production build, Rust format/check와 native 97개 테스트도 통과했다.
+
+따라서 작업 루트에 고정된 문서 MCP 15개, permalink·metadata·CAS·복구 삭제, wikilink와 명시적 연결 분리, AW 공유 HTTP ACP 주입, generation/run credential 수명, main UI 외부 변경·dirty 충돌 처리와 child ACL이 모두 완료 기준을 충족한다. gh-20에 남은 구현이나 검증 작업은 없다.
