@@ -75,3 +75,7 @@ CUA가 Finder와 native 앱 창을 정상적으로 읽게 되어 실제 검증�
 작업 디렉터리는 첫 fixture의 `box-md-browser-fixture-oJKzJG/workspace`이고 선택 페이지는 두 번째 fixture `http://127.0.0.1:57407`이다. 초기 원본 SHA-256은 source `98708e35bcb80f76a4f2d4e42adc924e771afe68af292b39e2c24dc9da1d307e`, target `9e99b48fa068591a345f14d4813527b6483bdc14f7e88592fb9433383f89e979`다.
 
 자동 회귀는 실제 production tracker를 iframe에 주입해 포커스 이탈·Selection 제거 후 동일 원문, 명시적 해제·DOM 제거·navigation 후 빈 값을 확인한다. fixture Chromium 9개와 Rust selection 검사, Rust fmt 및 QA94 app build가 통과했다. 전체 gh-94의 dirty 저장·버리기·취소, ACP 유지, IPC 거부, navigation snapshot 항목은 이어서 검증한다. 본 절은 gh-96 수정 근거이며 gh-94 전체 완료를 뜻하지 않는다.
+
+반복 검증에서 WebKit이 `selectionchange:true:0`을 `blur:false:0`보다 먼저 보내는 추가 경계를 발견했다. `hasFocus()`만으로 빈 선택을 즉시 지우면 실제 사용자가 toolbar를 누른 순간의 선택도 삭제됐다. 빈 selectionchange는 50ms 뒤 포커스를 재확인해 처리하고, pointerdown의 즉시 초기화와 pointerup/click/keyup의 선택 갱신을 추가했다. 임시 관찰기는 실제 이벤트 순서와 helper 반환 길이만 표시했으며 최종 소스에서는 제거했다. 회귀 검사는 포커스를 잃기 직전의 빈 selectionchange도 명시적으로 재현한다.
+
+최종 보완 QA94에서 동일한 영역의 첫 선택→미저장 모달→취소→재선택→미저장 모달이 연속 성공했고, 변경 버리고 계속으로 `261015110715-33422349.md`가 생성됐다. 취소 시 sidebar는 4개를 유지했고 버리기 성공 뒤 5개로 늘었다. source/target의 SHA-256은 위 초기 값과 모두 일치해 취소·버리기가 원본에 쓰지 않았음을 확인했다. 변경 전 native 재현과 변경 후 native 반복 성공을 별도 근거로 사용하며 Chromium fixture로 대체하지 않는다.
