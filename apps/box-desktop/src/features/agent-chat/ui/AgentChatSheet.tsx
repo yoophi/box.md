@@ -41,6 +41,11 @@ export function AgentChatSheet({
     sessions.find((item) => item.id === selected) ??
     sessions[sessions.length - 1];
   const agent = model.agents.find((item) => item.id === agentId);
+  // The pinned Codex ACP runtime cannot use every model in the global Codex config.
+  const defaultModel =
+    agent?.id === "codex"
+      ? agent.models?.find((item) => item.id === "gpt-5.6-sol")
+      : undefined;
   const draft = session ? (drafts[session.id] ?? "") : "";
   const canSend = Boolean(
     session &&
@@ -138,7 +143,9 @@ export function AgentChatSheet({
               value={modelId}
               onChange={(event) => setModelId(event.target.value)}
             >
-              <option value="">에이전트 기본값</option>
+              <option value="">
+                {defaultModel ? `${defaultModel.label} (기본)` : "에이전트 기본값"}
+              </option>
               {agent?.models?.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
@@ -159,7 +166,7 @@ export function AgentChatSheet({
               .createSession({
                 agentId,
                 permissionMode,
-                modelId: modelId || undefined,
+                modelId: modelId || defaultModel?.id,
               })
               .then((id) => {
                 if (id) setSelected(id);

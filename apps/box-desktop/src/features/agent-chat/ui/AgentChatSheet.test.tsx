@@ -5,6 +5,35 @@ import { readySession } from "../model/chat-fixture";
 import { AgentChatSheet } from "./AgentChatSheet";
 
 afterEach(cleanup);
+it("creates Codex sessions with a supported model instead of inheriting the global default", () => {
+  const chat = model();
+  chat.agents[0].models = [
+    { id: "gpt-5.6-sol", label: "GPT-5.6 Sol" },
+    { id: "gpt-5.6-luna", label: "GPT-5.6 Luna" },
+  ];
+  chat.agents.push({ id: "claude-code", label: "Claude Code", command: "claude-agent-acp" });
+  render(
+    <AgentChatSheet model={chat} open workspace="/one" blocked={false} onHide={() => {}} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "새 세션" }));
+  expect(chat.createSession).toHaveBeenCalledWith({
+    agentId: "codex", permissionMode: "default", modelId: "gpt-5.6-sol",
+  });
+  fireEvent.change(screen.getByRole("combobox", { name: "채팅 모델" }), {
+    target: { value: "gpt-5.6-luna" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "새 세션" }));
+  expect(chat.createSession).toHaveBeenLastCalledWith({
+    agentId: "codex", permissionMode: "default", modelId: "gpt-5.6-luna",
+  });
+  fireEvent.change(screen.getByRole("combobox", { name: "채팅 에이전트" }), {
+    target: { value: "claude-code" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "새 세션" }));
+  expect(chat.createSession).toHaveBeenLastCalledWith({
+    agentId: "claude-code", permissionMode: "default", modelId: undefined,
+  });
+});
 function model(): AgentChatModel {
   return {
     snapshot: {
