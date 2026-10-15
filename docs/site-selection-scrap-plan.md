@@ -118,3 +118,17 @@ Rust 검증은 domain 6개, site service 1개, command 신뢰·capability 2개, 
 workspace action은 선택을 먼저 받은 뒤 기존 dirty 대화상자에 저장·버리기·취소를 적용한다. 취소와 저장 실패는 생성 service를 호출하지 않는다. 생성은 기존 generation과 `create_document`만 사용하며 성공하면 읽기 모드를 해제하고 생성 결과를 열어 sidebar를 갱신한다. 다른 이름으로 저장 경로나 페이지 제공 파일명은 없다.
 
 formatter 3개, HomePage 44개가 통과했다. Playwright에서는 새 스크랩 3개를 포함한 사이트·문서 생성·설정 23개가 통과했다. 성공 검증은 unsafe 제목/HTML 형태와 Unicode·여러 줄·긴 backtick을 ID 파일과 metadata/fence에서 확인했고, dirty 취소 후 무생성·버리기와 원본 유지, 응답 유실 후 동일 request ID와 파일 한 개를 확인했다. 최초 전체 55개 실행에서 숨겨진 사이트 footer가 기존 오류 locator를 중복시키는 회귀를 발견해 열린 사이트에서만 workspace 오류를 전달하도록 고쳤고 관련 23개를 다시 통과시켰다.
+
+## 상위 feature 최종 수용 기준 (gh-5)
+
+2026-10-15 현재 source의 [실제 앱 감사](site-selection-scrap-native-audit.md)를 기준으로 URL 내 선택 영역을 원문 Markdown 문서로 저장하는 흐름을 완료했다. 설계 gh-91, native 수집 gh-92, UI·미저장 보호 gh-93, 실제 앱 통합 gh-94 및 감사 중 발견한 focus 전환 버그 gh-96의 구현·검증 근거를 연결한다.
+
+| 요구사항 | 완료 근거 |
+| --- | --- |
+| 사이트 선택 영역 수집 | 실제 macOS child WKWebView의 여러 줄·Unicode·Markdown/HTML 형태·긴 backtick 선택부터 native callback까지 확인. gh-96에서 toolbar focus 전환과 반복 선택 손실 해결. |
+| 원문과 출처 저장 | 실제 ID.md 5개의 permalink·title·summary·source·source_title·captured_at과 동적 fence 내부 원문을 디스크에서 파싱·대조. 원문은 실행되지 않는 text fence로 보존. |
+| 문서 작업 흐름 | sidebar 갱신·새 문서 편집 모드 열기·실제 원문 편집/Cmd+S, dirty 취소·버리기·저장, 생성 실패의 무생성과 권한 복구 후 재시도 확인. 응답 유실 request ID 재사용은 기존 실제 파일 backend와 browser 회귀로 검증. |
+| 경계·기존 상태 보존 | 선택 해제·빈 선택·256 KiB 초과·navigation의 안전한 처리와 URL/제목 snapshot, 실제 remote child 7명령 denied. 실제 ACP session·응답·draft 유지 및 원본 hash/본문 보존 확인. |
+| 전체 검증 | 현재 source typecheck/test/build, desktop Vitest126·Playwright56, fixture Node4·Chromium9, Rust fmt/all-target check/workspace test 1018 passed/9 ignored. |
+
+실제 앱 감사는 격리된 QA94 프로필과 소유 임시 문서만 사용했고, QA session·앱·fixture를 종료·정리했다. 외부에서 수정 중인 ACP UI 두 파일은 커밋에 포함하지 않았다. 모든 구현·검증 작업을 개별 커밋으로 push했다.
