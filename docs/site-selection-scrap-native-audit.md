@@ -55,3 +55,23 @@ CUA로 새 NativeQA 번들을 열자 프로세스는 실행됐지만 창 binding
 - `/ipc`에서 일곱 명령의 실제 native `denied` 확인
 
 CUA 창 연결이 복구되면 위 네 항목을 같은 NativeQA 프로필과 새 fixture에서 실행하고, 생성 파일과 원본 두 문서의 해시를 기록한다. 모든 항목이 통과한 뒤에만 이 문서를 완료 결과로 갱신하고 gh-94와 gh-5를 닫는다.
+
+## 2026-10-15 CUA 복구와 선택 유지 수정 (gh-96)
+
+CUA가 Finder와 native 앱 창을 정상적으로 읽게 되어 실제 검증을 재개했다. 이미 실행 중인 NativeQA 프로세스는 그대로 두고, `8c06d20` 작업 트리에서 별도 productName `box.md QA94`, identifier `com.yoophi.box-md.qa94`, scheme `boxmd-qa94`로 빌드했다. 같은 QA 설정을 복사해 식별자와 창 제목만 바꾼 `/tmp/box-md-qa94.conf.json`을 사용했다. 선택 유지 수정까지 포함한 QA94를 다시 빌드하고 정상 종료·재실행했다.
+
+실제 native에서 선택 버튼 직후 하이라이트와 선택 문자 수 106을 확인했지만, main toolbar 클릭 뒤 `document.hasFocus()`가 false가 되고 Selection이 0자로 바뀌어 `selectionEmpty`가 발생했다. 같은 동작을 반복해 재현했다. 임시 fixture 관찰기로 선택 길이·포커스만 확인했으며 원문/자격 증명을 로그로 보내지 않았다. 이 관찰기는 진단 후 제거했다.
+
+`site_selection.js`를 child 초기화 스크립트로 넣어 포커스가 있는 동안의 선택 원문과 복제 Range를 보관한다. 포커스가 있는 상태의 빈 선택과 새 pointer 조작, pagehide에서 캐시를 비운다. native 캡처는 현재 선택을 우선 읽고, 포커스 이탈 시에는 연결된 live Range가 남은 마지막 선택만 읽는다. DOM이 제거되면 원문을 반환하지 않는다. 캐시 문자열은 262,145 UTF-16 code unit까지 보관하며 기존 UTF-8 256 KiB 제한은 그대로 적용한다. 이 스크립트는 선택을 읽는 기능만 제공하며 IPC나 앱 권한을 추가하지 않는다.
+
+| 실제 QA94 동작 | 결과 |
+| --- | --- |
+| 여러 줄 Unicode·HTML/Markdown 형태·네 backtick 선택 후 toolbar 스크랩 | `261015105728-05ff097b.md` 생성, sidebar 2→3, 새 문서 편집 모드로 열림 |
+| 디스크 metadata·본문 | 파일명과 permalink 일치, title/source_title `선택 수집 제목 🌱`, source `http://127.0.0.1:57407/selection`, captured_at `2026-10-15T01:57:28.830Z`, 한줄 summary와 다섯 backtick fence 및 선택 원문 확인 |
+| 선택 후 페이지 제목을 클릭해 해제하고 스크랩 | 빈 선택 오류, sidebar 3개 유지 |
+| `/selection-large` 선택 후 스크랩 | 크기 초과 오류, sidebar 3개 유지 |
+| 선택 이후 `/one`으로 navigation 후 스크랩 | 빈 선택 오류, 이전 선택 미사용, sidebar 3개 유지 |
+
+작업 디렉터리는 첫 fixture의 `box-md-browser-fixture-oJKzJG/workspace`이고 선택 페이지는 두 번째 fixture `http://127.0.0.1:57407`이다. 초기 원본 SHA-256은 source `98708e35bcb80f76a4f2d4e42adc924e771afe68af292b39e2c24dc9da1d307e`, target `9e99b48fa068591a345f14d4813527b6483bdc14f7e88592fb9433383f89e979`다.
+
+자동 회귀는 실제 production tracker를 iframe에 주입해 포커스 이탈·Selection 제거 후 동일 원문, 명시적 해제·DOM 제거·navigation 후 빈 값을 확인한다. fixture Chromium 9개와 Rust selection 검사, Rust fmt 및 QA94 app build가 통과했다. 전체 gh-94의 dirty 저장·버리기·취소, ACP 유지, IPC 거부, navigation snapshot 항목은 이어서 검증한다. 본 절은 gh-96 수정 근거이며 gh-94 전체 완료를 뜻하지 않는다.

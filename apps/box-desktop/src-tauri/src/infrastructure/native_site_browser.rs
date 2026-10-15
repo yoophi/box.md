@@ -75,6 +75,7 @@ impl NativeSiteBrowser {
         let title = self.state.clone();
         let app = self.app.clone();
         WebviewBuilder::new(LABEL, tauri::WebviewUrl::External(address.url().clone()))
+            .initialization_script(include_str!("site_selection.js"))
             // Policy hooks also see subframe navigation. They must not replace the address bar.
             .on_navigation(SiteAddress::allowed)
             .on_page_load(move |_, payload| {
@@ -195,7 +196,7 @@ impl SiteBrowserHost for NativeSiteBrowser {
 
 #[cfg(target_os = "macos")]
 const SELECTION_SCRIPT: &str = r#"(() => {
-  const text = window.getSelection()?.toString() ?? "";
+  const text = window.__boxReadSiteSelection?.() ?? window.getSelection()?.toString() ?? "";
   if (new TextEncoder().encode(text).length > 262144) {
     return JSON.stringify({ kind: "tooLarge" });
   }

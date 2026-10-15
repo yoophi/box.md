@@ -54,6 +54,29 @@ test("fixture exposes selectable rich, oversized and navigation-race content",as
   expect(await page.evaluate(()=>getSelection().toString())).toBe("경쟁 상태에서도 한 번에 읽은 원문 🌊");
 });
 
+test("native selection tracker keeps blurred selections and clears explicit deselection or removed DOM",async({page})=>{
+  await page.addInitScript({path:"src-tauri/src/infrastructure/site_selection.js"});
+  await page.goto(fixture.baseUrl+"/iframe");
+  const child=page.frames().find(frame=>frame.parentFrame());
+  await child.goto(fixture.baseUrl+"/selection");
+  await child.getByRole("button",{name:"검증 원문 선택"}).click();
+  const selected=await child.evaluate(()=>getSelection().toString());
+  expect(selected).toContain("첫 줄의 Unicode 원문 🌱");
+  await page.getByRole("heading",{name:"주 페이지",exact:true}).click();
+  await expect.poll(()=>child.evaluate(()=>document.hasFocus())).toBe(false);
+  // Reproduce the selection clearing that WKWebView performs on first-responder loss.
+  await child.evaluate(()=>getSelection().removeAllRanges());
+  expect(await child.evaluate(()=>window.__boxReadSiteSelection())).toBe(selected);
+  await child.getByRole("heading",{name:"선택 영역 수집",exact:true}).click();
+  await expect.poll(()=>child.evaluate(()=>window.__boxReadSiteSelection())).toBe("");
+  await child.getByRole("button",{name:"검증 원문 선택"}).click();
+  await page.getByRole("heading",{name:"주 페이지",exact:true}).click();
+  await child.evaluate(()=>{getSelection().removeAllRanges();document.querySelector('#selection-content').remove();});
+  expect(await child.evaluate(()=>window.__boxReadSiteSelection())).toBe("");
+  await child.goto(fixture.baseUrl+"/one");
+  expect(await child.evaluate(()=>window.__boxReadSiteSelection())).toBe("");
+});
+
 test("absence of a native bridge is reported as unverified, never as denied",async({page})=>{
   await page.goto(fixture.baseUrl+"/ipc");await page.getByRole("button",{name:"접근 거부 확인"}).click();
   await expect(page.locator('#ipc-results li[data-status="missing-bridge"]')).toHaveCount(7);
