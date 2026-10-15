@@ -6,22 +6,24 @@ import { documentProperty, setDocumentProperty } from "@box/editor";
 import { errorMessage } from "@/entities/document";
 
 export function DocumentProperties({ content, disabled, identityPending = false, onChange }: {content: string; disabled: boolean; identityPending?: boolean; onChange: (content: string) => void}) {
+  const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [permalink, setPermalink] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   useEffect(() => {
-    try { setPermalink(documentProperty(content, "permalink")); setSummary(documentProperty(content, "summary")); setParseError(null); }
+    try { setTitle(documentProperty(content, "title")); setPermalink(documentProperty(content, "permalink")); setSummary(documentProperty(content, "summary")); setParseError(null); }
     catch (cause) { setParseError(errorMessage(cause)); }
   }, [content]);
   return <form className="document-properties" aria-label="문서 속성" onSubmit={(event) => {
     event.preventDefault();
     try {
-      const next = setDocumentProperty(content, "summary", summary.trim());
+      const next = setDocumentProperty(setDocumentProperty(content, "title", title.trim()), "summary", summary.trim());
       onChange(identityPending ? next : setDocumentProperty(next, "permalink", permalink.trim())); setError(null);
     }
     catch (cause) { setError(errorMessage(cause)); }
   }}>
+    <label>제목<input aria-label="문서 제목" value={title} disabled={disabled || Boolean(parseError)} onChange={(event) => setTitle(event.target.value)} placeholder="제목 없음" /></label>
     <label>한 줄 요약<input aria-label="한 줄 요약" value={summary} disabled={disabled || Boolean(parseError)} onChange={(event) => setSummary(event.target.value)} placeholder="이 문서를 한 문장으로" /></label>
     <label>고정 링크<input aria-label="permalink" value={identityPending ? "" : permalink} disabled={disabled || Boolean(parseError) || identityPending} onChange={(event) => setPermalink(event.target.value)} placeholder={identityPending ? "저장 시 자동 생성" : "/notes/my-document"} /></label>
     <button type="button" disabled={disabled || Boolean(parseError) || Boolean(permalink) || identityPending} onClick={() => {

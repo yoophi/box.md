@@ -813,6 +813,32 @@ describe("document workspace flows", () => {
     expect(screen.queryByRole("dialog", { name: "note.md" })).toBeNull();
     expect(native.content).toBe(original);
   });
+  it("saves a title, restores it after reopening and displays it on the card", async () => {
+    native.content = "---\npermalink: fixed\nsummary: 기존 요약\ncustom: {enabled: true}\n---\n# 원문\n\n본문 보존\n";
+    const user = userEvent.setup(); const view = render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    await user.type(screen.getByRole("textbox", { name: "문서 제목" }), '문서: "제목" 🌱');
+    await user.click(screen.getByRole("button", { name: "문서에 적용" }));
+    await user.click(screen.getByRole("button", { name: /^저장/ }));
+    await waitFor(() => expect(documentProperty(native.content, "title")).toBe('문서: "제목" 🌱'));
+    expect(documentProperty(native.content, "permalink")).toBe("fixed");
+    expect(documentProperty(native.content, "summary")).toBe("기존 요약");
+    expect(native.content).toContain("enabled: true");
+    expect(native.content.endsWith("# 원문\n\n본문 보존\n")).toBe(true);
+    view.unmount(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: /note.md/ }));
+    expect(screen.getByRole("textbox", { name: "문서 제목" })).toHaveProperty("value", '문서: "제목" 🌱');
+    await user.click(screen.getByRole("button", { name: "문서 카드 보기" }));
+    expect(await screen.findByRole("heading", { name: '문서: "제목" 🌱' })).toBeTruthy();
+  });
+  it.each(["", 'title: ""\n', 'title: "   "\n'])("shows an untitled card for missing or blank title: %s", async (title) => {
+    native.content = `---\npermalink: fixed\n${title}---\n# 본문 제목은 카드 제목이 아님\n`;
+    const user = userEvent.setup(); render(<HomePage />);
+    await user.click(await screen.findByRole("button", { name: "문서 카드 보기" }));
+    await screen.findByText("요약을 추가해보세요.");
+    expect(screen.getByRole("heading", { name: "제목 없음" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "note.md" })).toBeNull();
+  });
   it("saves a one-line summary in front matter and reloads it without changing the body", async () => {
     native.content = "---\npermalink: fixed\ncustom: {enabled: true}\n---\n# 원문\n\n본문 보존\n";
     const user = userEvent.setup(); const view = render(<HomePage />);

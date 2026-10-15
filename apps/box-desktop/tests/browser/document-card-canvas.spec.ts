@@ -55,7 +55,7 @@ test("pans, zooms, connects cards and edits a document through the persisted can
   await modal.getByRole("button", { name: "편집", exact: true }).click();
   await modal.getByRole("button", { name: "Markdown 원문", exact: true }).click();
   const source = modal.getByRole("textbox", { name: "Markdown 원문", exact: true });
-  await source.fill(`${first}\n\n캔버스 모달 저장`);
+  await source.fill(`${first.replace("permalink: first", 'permalink: first\ntitle: "변경한 카드 제목 🌱"')}\n\n캔버스 모달 저장`);
   await modal.getByRole("button", { name: "저장", exact: true }).click();
   await expect(modal.getByText("문서를 저장했습니다.", { exact: true })).toBeVisible();
   const fileState = await page.evaluate(() => ({
@@ -66,9 +66,31 @@ test("pans, zooms, connects cards and edits a document through the persisted can
   expect(fileState.writes).toHaveLength(1);
   expect(fileState.writes[0].path).toBe("/fixture/note-001.md");
   await modal.getByRole("button", { name: "닫기", exact: true }).click();
+  await expect(firstCard.getByRole("heading", { name: "변경한 카드 제목 🌱" })).toBeVisible();
 
   await page.reload();
   await page.getByRole("button", { name: "문서 카드 보기" }).click();
   await expect(page.getByRole("region", { name: "무한 문서 캔버스" }).locator(".card-connection-line")).toHaveCount(1);
   await testInfo.attach("document-card-canvas.png", { body: await page.screenshot(), contentType: "image/png" });
+});
+
+test("saves title frontmatter through properties and uses it on cards after reopening", async ({ page }) => {
+  await seedWorkspace(page, 2, { contents: { "/fixture/note-001.md": first, "/fixture/note-002.md": second } });
+  await page.goto("/");
+  await page.getByRole("button", { name: "문서 카드 보기" }).click();
+  await expect(page.locator(".document-card h2")).toHaveText(["제목 없음", "제목 없음"]);
+  await page.getByRole("button", { name: "편집 화면으로 돌아가기" }).click();
+  await page.getByRole("region", { name: "작업 디렉터리 문서" }).getByRole("button", { name: /note-001\.md/ }).click();
+  await page.getByRole("textbox", { name: "문서 제목", exact: true }).fill('문서: "제목" 🌱');
+  await page.getByRole("button", { name: "문서에 적용", exact: true }).click();
+  await page.getByRole("button", { name: /^저장/ }).click();
+  await expect(page.getByText("저장하지 않은 변경사항", { exact: true })).toHaveCount(0);
+  const stored = await page.evaluate(() => window.__BOX_BROWSER_FIXTURE__.content.get("/fixture/note-001.md"));
+  expect(stored).toContain("permalink: first");
+  expect(stored).toContain("첫 카드 요약");
+  expect(stored).toContain("# 첫 문서\n\n첫 본문");
+  await page.getByRole("button", { name: "다시 불러오기", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "문서 제목", exact: true })).toHaveValue('문서: "제목" 🌱');
+  await page.getByRole("button", { name: "문서 카드 보기" }).click();
+  await expect(page.locator(".document-card h2")).toHaveText(['문서: "제목" 🌱', "제목 없음"]);
 });

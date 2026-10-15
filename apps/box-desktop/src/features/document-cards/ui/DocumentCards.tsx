@@ -17,7 +17,7 @@ import {
 } from "../model/canvas";
 import { DocumentCardModal } from "./DocumentCardModal";
 
-type CardMetadata = { summary: string; permalink: string; error?: string };
+type CardMetadata = { title: string; summary: string; permalink: string; error?: string };
 type Gesture =
   | { kind: "pan"; pointerId: number; pointer: Point; camera: Camera }
   | { kind: "card"; pointerId: number; pointer: Point; path: string; position: Point; moved: boolean };
@@ -92,7 +92,9 @@ export function DocumentCards({ workspace, disabled, onClose }: {
     if (!isDesktop()) return;
     let disposed = false, stop: (() => void) | undefined;
     void listenDocumentChanges((change) => {
-      if (change.kind === "connectionsChanged" && change.generation === workspace.generation) void loadConnections();
+      if (change.generation !== workspace.generation) return;
+      if (change.kind === "connectionsChanged") void loadConnections();
+      else setReload((value) => value + 1);
     }).then((unlisten) => { if (disposed) unlisten(); else stop = unlisten; })
       .catch((cause) => { if (!disposed) setConnectionError(errorMessage(cause)); });
     return () => { disposed = true; stop?.(); };
@@ -107,11 +109,12 @@ export function DocumentCards({ workspace, disabled, onClose }: {
           try {
             const snapshot = await readDocument(file.path);
             return [file.path, {
+              title: documentProperty(snapshot.content, "title"),
               summary: documentProperty(snapshot.content, "summary"),
               permalink: documentProperty(snapshot.content, "permalink"),
             }] as const;
           } catch (cause) {
-            return [file.path, { summary: "", permalink: "", error: errorMessage(cause) }] as const;
+            return [file.path, { title: "", summary: "", permalink: "", error: errorMessage(cause) }] as const;
           }
         }));
         if (!active) return;
@@ -296,7 +299,7 @@ export function DocumentCards({ workspace, disabled, onClose }: {
             <button disabled={disabled} aria-label={`${file.name} 카드 선택`} aria-pressed={selected.includes(file.path)} onClick={(event) => {
               if (event.detail === 0) toggleSelection(file.path);
             }}>
-              <span className="card-mark">▤</span><h2>{file.name}</h2>
+              <span className="card-mark">▤</span><h2>{details?.title.trim() || "제목 없음"}</h2>
               <p className="card-summary" title={details?.summary}>{details?.summary || (details ? "요약을 추가해보세요." : "요약을 읽는 중…")}</p>
               <small>{file.relativePath}</small>
               {details?.error && <p className="comment-error">{details.error}</p>}
