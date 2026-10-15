@@ -1,6 +1,6 @@
 # 사이트 선택 스크랩 실제 앱 감사 (gh-94)
 
-2026-10-15 현재 source로 별도 `box.md NativeQA` 번들과 선택 전용 loopback fixture를 만들었다. 자동 검증은 모두 통과했지만 macOS Computer Use가 시스템의 모든 native 창에 `cgWindowNotFound(-10005)`를 반환해 실제 child WebView 조작은 아직 완료하지 못했다. 이 문서는 완료 증명이 아니라 재현 가능한 준비 상태와 남은 native 증거를 기록한다. gh-94와 상위 gh-5는 실제 앱 항목을 확인할 때까지 완료로 판정하지 않는다.
+2026-10-15 CUA native 창 연결이 복구되어, 별도 `box.md QA94`와 임시 loopback fixture에서 실제 child WebView 선택부터 디스크 문서 생성·편집까지 검증했다. 검사 중 발견한 WebKit 포커스 전환 버그는 gh-96에서 수정하고 반복 검증했다. 아래 초기 장애 기록에 이어 마지막 절에 현재 source의 실제 앱 수용 기준과 회귀 결과를 정리한다.
 
 ## 격리 환경
 
@@ -43,18 +43,18 @@ fixture는 자신이 만든 임시 디렉터리와 loopback 서버만 소유한�
 
 Rust 전체 테스트에는 `SiteSelection` URL·제목·본문 검증, Unicode byte 한계, 선택 원문 보존, service 오류 전달, main-only command/capability, macOS callback JSON·오류·timeout 검사가 포함된다. React와 Playwright 검사는 formatter, dirty 저장·버리기·취소, 응답 유실 request ID 재사용, sidebar 갱신, 생성 문서 열기와 기존 문서·설정·채팅 회귀를 포함한다.
 
-## 실제 앱 상태
+## 초기 실제 앱 연결 장애 기록
 
 CUA로 새 NativeQA 번들을 열자 프로세스는 실행됐지만 창 binding에서 `cgWindowNotFound(-10005)`가 발생했다. 해당 QA 프로세스만 종료한 뒤 bundle identifier로 다시 시작해도 같았다. CUA inventory에는 NativeQA가 실행 중으로 나타났으며 Finder 창 연결도 같은 오류를 반환했다. CUA JavaScript 세션을 reset하고 다시 inventory를 읽은 뒤 재연결했지만 오류가 유지됐다. 따라서 앱 자체의 시작 실패로 간주하지 않고 현재 WindowServer/CUA 연결 문제로 분류한다.
 
-화면을 읽지 못한 상태에서 UI 성공 여부를 추정하거나 일반 Chromium 결과로 대체하지 않았다. 아래 항목은 미검증 상태다.
+초기에는 화면을 읽지 못한 상태에서 UI 성공 여부를 추정하거나 일반 Chromium 결과로 대체하지 않았다. 당시 미검증 항목은 다음과 같았으며, 복구 뒤 마지막 절의 실제 앱 감사에서 확인했다.
 
 - `/selection` 실제 child WebView 선택 → 스크랩 버튼 → 생성 ID 파일의 permalink, title, summary, source, source_title, captured_at, 동적 fence와 원문 바이트 확인
 - 선택 없음, `/selection-large`, `/selection-race`, 생성 오류 재시도의 실제 footer와 파일 무생성/일관성 확인
 - dirty 문서 저장·버리기·취소, sidebar 갱신, 새 문서 열기·편집, 문서 초안·undo와 ACP session/draft 유지 확인
 - `/ipc`에서 일곱 명령의 실제 native `denied` 확인
 
-CUA 창 연결이 복구되면 위 네 항목을 같은 NativeQA 프로필과 새 fixture에서 실행하고, 생성 파일과 원본 두 문서의 해시를 기록한다. 모든 항목이 통과한 뒤에만 이 문서를 완료 결과로 갱신하고 gh-94와 gh-5를 닫는다.
+연결 복구 뒤 기존 NativeQA 프로세스와 분리한 QA94 프로필에서 위 항목을 진행했다.
 
 ## 2026-10-15 CUA 복구와 선택 유지 수정 (gh-96)
 
@@ -79,3 +79,27 @@ CUA가 Finder와 native 앱 창을 정상적으로 읽게 되어 실제 검증�
 반복 검증에서 WebKit이 `selectionchange:true:0`을 `blur:false:0`보다 먼저 보내는 추가 경계를 발견했다. `hasFocus()`만으로 빈 선택을 즉시 지우면 실제 사용자가 toolbar를 누른 순간의 선택도 삭제됐다. 빈 selectionchange는 50ms 뒤 포커스를 재확인해 처리하고, pointerdown의 즉시 초기화와 pointerup/click/keyup의 선택 갱신을 추가했다. 임시 관찰기는 실제 이벤트 순서와 helper 반환 길이만 표시했으며 최종 소스에서는 제거했다. 회귀 검사는 포커스를 잃기 직전의 빈 selectionchange도 명시적으로 재현한다.
 
 최종 보완 QA94에서 동일한 영역의 첫 선택→미저장 모달→취소→재선택→미저장 모달이 연속 성공했고, 변경 버리고 계속으로 `261015110715-33422349.md`가 생성됐다. 취소 시 sidebar는 4개를 유지했고 버리기 성공 뒤 5개로 늘었다. source/target의 SHA-256은 위 초기 값과 모두 일치해 취소·버리기가 원본에 쓰지 않았음을 확인했다. 변경 전 native 재현과 변경 후 native 반복 성공을 별도 근거로 사용하며 Chromium fixture로 대체하지 않는다.
+
+## 현재 source 실제 앱 최종 감사 (gh-94)
+
+기능 source는 `aadadec`이며 기존 외부 ACP UI 수정 두 파일을 포함한 작업 트리로 QA94를 빌드했다. 해당 두 파일은 이번 커밋에 포함하지 않았다. 최종 QA94 실행파일 SHA-256은 `040a1b4b048df9b7fbb6d32587f45f37f6d555145d50977c904fa496ac8d00ca`다. native 조작은 CUA로만 수행했다.
+
+| 수용 기준 | 실제 native 근거 |
+| --- | --- |
+| 여러 줄·Unicode·Markdown/HTML·긴 backtick, ID 파일·frontmatter | 앞 절의 실제 생성 파일을 디스크에서 파싱했다. ID 파일 5개 모두 파일명/permalink 일치, title/summary/source/source_title/captured_at 및 날짜 파싱·한줄 summary 통과. 네 backtick 원문은 다섯 backtick fence 안에 보존됐다. |
+| 선택 없음·크기 초과·navigation | 실제 페이지에서 선택 해제 후 빈 선택 오류와 무생성, 256 KiB 초과 오류와 무생성, `/one` 이동 뒤 이전 선택 미사용을 확인했다. |
+| URL·제목 snapshot | `/selection-race`에서 선택→pushState/제목 변경 뒤 생성한 `261015105943-abb1b399.md`의 source는 `http://127.0.0.1:57407/selection-race?state=2#captured`, title은 `선택 경쟁 이후 제목 🌊`, 본문은 같은 선택 원문이었다. |
+| dirty 취소·버리기 | 취소 후 원본 초안과 사이트가 복원되고 파일 수 4개 유지. 같은 영역 재선택 뒤 버리기로 새 파일 생성·5개 표시. 두 원본 해시가 초기 값과 같았다. |
+| dirty 저장 후 계속 | source 제목을 `QA94 saved title`로 적용하고 스크랩→저장 후 계속. 원본 title만 의도대로 저장되고 permalink/summary와 본문 suffix는 그대로였다. 이어 `261015110840-80d39454.md` 생성·sidebar 6개·새 편집 문서 열기를 확인했다. |
+| 실제 생성 오류와 재시도 | 소유한 임시 workspace만 mode 500으로 바꿔 생성 실패를 유도. 오류 footer와 파일 6개 유지 확인. mode 700 복구 후 스크랩 다시 시도로 `261015111029-aa74d0c4.md` 하나가 생성되고 sidebar 7개로 갱신됐다. |
+| ACP session·응답·draft 유지 | 문서 도구를 끈 QA94 전용 Codex session에서 `QA94_OK` 응답을 실제로 받았다. `QA94 preserved chat draft`를 남긴 채 native 사이트와 채팅을 함께 표시하고 생성 실패→재시도를 수행했다. 이후 같은 session 1, 대화 가능 상태, 응답과 draft가 유지됐다. QA session만 종료됨으로 바꿨다. |
+| 생성 문서 편집·저장 | 생성 문서를 원문 모드로 열고 `QA94 edited scrap`을 추가한 뒤 Cmd+S. 저장 완료 UI와 실제 파일 suffix를 확인했다. |
+| remote child 격리 | 실제 `/ipc`에서 get_app_info/open_document/list_workspace_documents/get_workbench_connection/get_document_mcp_grant/revoke_document_mcp_grant/site_browser_selection 일곱 명령 모두 denied. 응답 원문이나 자격 증명은 표시하지 않았다. |
+
+실제 디스크 감사는 5개 ID 문서와 원본 두 문서를 검사했다. title 저장을 의도한 source의 본문 suffix는 초기와 동일했고, target SHA-256은 계속 `9e99b48fa068591a345f14d4813527b6483bdc14f7e88592fb9433383f89e979`였다. 전송 응답 유실의 request ID 재사용은 실제 디스크를 쓰는 backend와 browser 자동 회귀로 확인하며 native UI에서 네트워크 응답 유실을 주입했다고 주장하지 않는다.
+
+QA94의 ACP session과 앱은 정상 종료했다. fixture PID 4408/11014/25021만 SIGTERM으로 종료해 세 서버의 소유 임시 디렉터리를 정리했다. 별도로 이미 실행 중이던 NativeQA 프로세스는 변경하지 않았다.
+
+최종 현재 source 검증은 전체 `pnpm check-types` 7 packages, `pnpm test`의 desktop 126/editor 90/workbench client 75/UI 18/agent client 16, `pnpm build`, desktop Playwright 56개, Node fixture 4개, Chromium fixture 9개가 모두 통과했다. `cargo fmt --all -- --check`, `cargo check --workspace --all-targets`, `cargo test --workspace`도 종료 코드 0으로 완료했다. 기존 dead-code 경고 4개와 frontend chunk 크기 경고는 남는다. fixture의 blur 재현은 실제 native처럼 선택 해제와 포커스 전환을 같은 task에 넣어 병렬 부하에서도 이벤트 사이 지연이 생기지 않게 했다.
+
+gh-94의 실제 앱 수용 기준과 현재 source 회귀 검증을 모두 충족했다. gh-96의 수정으로 실제 탐색 중 발견한 선택 손실을 해결했고, 상위 gh-5의 스크랩 흐름을 완료 판정할 수 있다.

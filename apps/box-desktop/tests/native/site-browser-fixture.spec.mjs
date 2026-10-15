@@ -63,8 +63,11 @@ test("native selection tracker keeps blurred selections and clears explicit dese
   const selected=await child.evaluate(()=>getSelection().toString());
   expect(selected).toContain("첫 줄의 Unicode 원문 🌱");
   // WebKit clears Selection and emits selectionchange before reporting blur.
-  await child.evaluate(()=>{getSelection().removeAllRanges();document.dispatchEvent(new Event('selectionchange'));});
-  await page.getByRole("heading",{name:"주 페이지",exact:true}).click();
+  await child.evaluate(()=>{
+    getSelection().removeAllRanges();document.dispatchEvent(new Event('selectionchange'));
+    // Keep clearing and blur in one task, as WebKit's native responder transition does.
+    const parentBody=window.parent.document.body;parentBody.tabIndex=-1;parentBody.focus();
+  });
   await expect.poll(()=>child.evaluate(()=>document.hasFocus())).toBe(false);
   // Reproduce the selection clearing that WKWebView performs on first-responder loss.
   await child.evaluate(()=>getSelection().removeAllRanges());
